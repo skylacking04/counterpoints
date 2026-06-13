@@ -59,10 +59,12 @@ function cleanPosts(posts: GrokPost[], claim?: string): GrokPost[] {
   return posts.filter(p => !isGarbageText(p.text) && rel(p.text))
 }
 
-// Strip stale garbage/irrelevant X items from a cached claim's grok lens at serve time.
-export function cleanGrokSpectrum<T extends { quote: string }>(items: T[], claim: string): T[] {
+// Strip stale garbage/irrelevant/non-X items from a cached claim's grok lens at serve time.
+// The X Community lens must only contain real x.com / twitter.com links.
+export function cleanGrokSpectrum<T extends { quote: string; url?: string }>(items: T[], claim: string): T[] {
   const rel = relevantTo(claim)
-  return (items ?? []).filter(i => !isGarbageText(i.quote) && rel(i.quote))
+  const isX = (url?: string) => !!url && /(?:[a-z0-9-]+\.)?(?:x\.com|twitter\.com)\//i.test(url)
+  return (items ?? []).filter(i => isX(i.url) && !isGarbageText(i.quote) && rel(i.quote))
 }
 function cleanNotes(notes: GrokNote[], claim?: string): GrokNote[] {
   const rel = claim ? relevantTo(claim) : () => true
@@ -161,13 +163,16 @@ export async function searchGrokNotes(claim: string): Promise<GrokResult> {
         messages: [
           {
             role: 'user',
-            content: `Search X/Twitter for Community Notes and credible posts about this claim: "${claim}"
-Return JSON only (no markdown):
+            content: `On X/Twitter, find content about this claim: "${claim}"
+
+PRIORITIZE official **Community Notes** that have been rated "Helpful" and are publicly showing on a post — these are the gold standard (crowd-verified corrections). Then, only if needed, credible posts from knowledgeable accounts.
+
+Return JSON only (no markdown). Every "url" MUST be a real x.com or twitter.com post/status URL — never a news article, YouTube, or other site. If you can't find a real X link, omit that item.
 {
-  "notes": [{ "text": "...", "url": "...", "upvotes": 0 }],
-  "posts": [{ "author": "...", "text": "...", "url": "..." }]
+  "notes": [{ "text": "the Community Note text", "url": "https://x.com/.../status/...", "upvotes": 0 }],
+  "posts": [{ "author": "handle", "text": "...", "url": "https://x.com/.../status/..." }]
 }
-Return up to 3 community notes and 3 posts. If none found, return empty arrays.`,
+Up to 3 Community Notes and 2 posts. Prefer fewer, real notes over filler. If none found, return empty arrays.`,
           },
         ],
         max_tokens: 1024,

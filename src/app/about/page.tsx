@@ -31,7 +31,7 @@ export default function About() {
             Beauty is in the eye of the beholder.<br />
             Today, <em>truth</em> is too.
           </p>
-          <p className="text-sm text-gray-600">And that is a problem worth solving.</p>
+          <p className="text-sm text-gray-300">And that is a problem worth solving.</p>
         </header>
 
         {/* Truthiness */}
@@ -173,7 +173,7 @@ export default function About() {
           </Link>
         </section>
 
-        <footer className="border-t border-white/5 pt-8 text-center text-xs text-gray-600">
+        <footer className="border-t border-white/5 pt-8 text-center text-xs text-gray-300">
           CounterPoints is built for truth-seekers, not partisans. Built with Gemini, Grok, and a lot of epistemic humility.
         </footer>
       </article>

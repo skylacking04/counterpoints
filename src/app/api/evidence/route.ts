@@ -37,13 +37,20 @@ async function validateXPosts(items: SpectrumItem[], claim: string, settings?: L
   }
 }
 
-// Whole X/Community lens: gather notes+posts, then run the relevance/factual gate.
+// A URL that's actually an X/Twitter post (not a random web article the fallback dragged in).
+function isXPostUrl(url: string): boolean {
+  return /(?:^https?:\/\/)?(?:[a-z0-9-]+\.)?(?:x\.com|twitter\.com)\/[^/]+\/status/i.test(url)
+    || /(?:^https?:\/\/)?(?:[a-z0-9-]+\.)?(?:x\.com|twitter\.com)\//i.test(url)
+}
+
+// Whole X/Community lens: gather notes+posts, keep ONLY real x.com/twitter.com links (the web-search
+// fallback returns non-X articles that don't belong here), then run the relevance/factual gate.
 async function buildGrokLens(claim: string, settings?: LLMSettings): Promise<SpectrumItem[]> {
   const grokResult = await searchGrokNotes(claim)
   const raw: SpectrumItem[] = [
     ...(grokResult?.notes ?? []).map(n => ({ source: 'X Community Note', url: n.url, quote: n.text })),
     ...(grokResult?.posts ?? []).map(p => ({ source: `@${p.author}`, url: p.url, quote: p.text })),
-  ]
+  ].filter(i => isXPostUrl(i.url))
   return validateXPosts(raw, claim, settings)
 }
 

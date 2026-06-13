@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react'
 import Link  from 'next/link'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { LogIn, User } from 'lucide-react'
+import { Fragment } from 'react'
+import { LogIn, User, Link2, ScanSearch, Scale, CheckCircle2, ArrowRight, ArrowDown } from 'lucide-react'
 import { BrandMark } from '@/components/BrandMark'
 import { LoginModal } from '@/components/LoginModal'
+import { LensDemo } from '@/components/LensDemo'
 
 const FEATURES = [
   {
@@ -36,20 +38,10 @@ const FEATURES = [
 const DEMO_VIDEO = { youtubeId: '', mp4: '/demo.mp4', poster: '/demo-poster.png' }
 
 const HOW_STEPS = [
-  { n: '1', t: 'Paste a YouTube URL', d: 'CounterPoints fetches the transcript in seconds — real captions via proxy, or Gemini video analysis as a fallback.', img: '/howto-1.png' },
-  { n: '2', t: 'Claims auto-detected', d: 'Every 30 seconds, Gemini scans the transcript for factual claims (stats, history, science, politics) with confidence scoring.', img: '/howto-2.png' },
-  { n: '3', t: 'Full spectrum checked', d: 'Each claim is simultaneously searched across Left, Center, Right, Alt media — plus X Community Notes via Grok. Parallel, <5 seconds.', img: '/howto-3.png' },
-  { n: '4', t: 'Verdict + sources', d: 'A two-pass system delivers a verdict: TRUE / MISLEADING / FALSE / UNVERIFIED — with quoted sources from every side.', img: '/howto-4.png' },
-  { n: '5', t: 'Learns over time', d: 'Every claim and verdict is stored in a knowledge base with semantic embeddings. Next time a similar claim appears, it answers instantly.', img: '/howto-5.png' },
-]
-
-const SPECTRUM = [
-  { label: '𝕏 Community',  color: 'text-sky-300',    bg: 'bg-sky-500/10',    border: 'border-sky-500/25' },
-  { label: 'Left',          color: 'text-blue-300',   bg: 'bg-blue-500/10',   border: 'border-blue-500/25' },
-  { label: 'Center',        color: 'text-slate-300',  bg: 'bg-slate-500/10',  border: 'border-slate-500/25' },
-  { label: 'Right',         color: 'text-red-300',    bg: 'bg-red-500/10',    border: 'border-red-500/25' },
-  { label: 'Alt / Honest',  color: 'text-amber-300',  bg: 'bg-amber-500/10',  border: 'border-amber-500/25' },
-  { label: '⚖ Full Picture',color: 'text-purple-300', bg: 'bg-purple-500/10', border: 'border-purple-500/25' },
+  { icon: Link2,        t: 'Paste a URL or go live', d: 'Drop a YouTube link or capture live tab/mic audio. The transcript streams in seconds.' },
+  { icon: ScanSearch,   t: 'Claims auto-detected',   d: 'AI scans the rolling transcript in real time and flags factual claims as they’re spoken.' },
+  { icon: Scale,        t: 'Checked from every side', d: 'Each claim is searched across Left, Center, Right, Alt media + X Community Notes — in parallel.' },
+  { icon: CheckCircle2, t: 'Verdict + the actual facts', d: 'A clear verdict with the middle-ground truth and cited sources — then cached so repeats are instant.' },
 ]
 
 // Demo video player — YouTube embed, local mp4, or placeholder (asset-driven)
@@ -89,30 +81,8 @@ function DemoVideo() {
     >
       <span className="text-4xl opacity-60">▶</span>
       <span className="text-sm text-gray-400 font-medium">Demo video coming soon</span>
-      <span className="text-[11px] text-gray-600">A 60-second walkthrough of CounterPoints in action</span>
+      <span className="text-[11px] text-gray-300">A 60-second walkthrough of CounterPoints in action</span>
     </div>
-  )
-}
-
-// Step screenshot with graceful fallback when the asset isn't present yet
-function StepImage({ src, alt }: { src: string; alt: string }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) {
-    return (
-      <div className="w-full sm:w-44 shrink-0 rounded-xl border border-dashed border-white/10 bg-white/[0.02] flex items-center justify-center aspect-video">
-        <span className="text-[10px] text-gray-600">screenshot</span>
-      </div>
-    )
-  }
-  // Plain img (not next/image) so a missing optional asset degrades gracefully via onError
-  // eslint-disable-next-line @next/next/no-img-element
-  return (
-    <img
-      src={src}
-      alt={alt}
-      onError={() => setFailed(true)}
-      className="w-full sm:w-44 shrink-0 rounded-xl border border-white/10 object-cover aspect-video"
-    />
   )
 }
 
@@ -247,37 +217,37 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Spectrum strip */}
-      <section className="border-t border-b border-white/5 py-10 px-6 mb-20">
-        <p className="text-center text-xs text-gray-500 uppercase tracking-widest mb-6">Sources from every lens</p>
-        <div className="flex flex-wrap justify-center gap-2 max-w-xl mx-auto">
-          {SPECTRUM.map(s => (
-            <span key={s.label} className={`text-xs px-3 py-1.5 rounded-full border font-medium ${s.color} ${s.bg} ${s.border}`}>
-              {s.label}
-            </span>
-          ))}
-        </div>
-        <p className="text-center text-xs text-gray-600 mt-5 max-w-lg mx-auto">
-          X Community Notes · Reuters · AP · Fox News · MSNBC · The Hill · Grayzone · Jimmy Dore · Sam Seder · Valuetainment · Wikipedia · PolitiFact and more
-        </p>
+      {/* Interactive multi-lens demo */}
+      <section className="border-t border-b border-white/5 py-12 px-6 mb-20">
+        <p className="text-center text-xs text-gray-500 uppercase tracking-widest mb-8">Sources from every lens</p>
+        <LensDemo />
       </section>
 
-      {/* How to use */}
-      <section className="px-6 pb-20 max-w-4xl mx-auto">
-        <h2 className="text-center text-2xl font-semibold text-white/80 mb-10">How to use it</h2>
-        <div className="space-y-5">
-          {HOW_STEPS.map(step => (
-            <div key={step.n} className="flex flex-col sm:flex-row gap-4 sm:items-center rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-              <StepImage src={step.img} alt={`Step ${step.n}: ${step.t}`} />
-              <div className="flex gap-4 items-start flex-1">
-                <span className="shrink-0 w-8 h-8 rounded-full bg-indigo-500/15 border border-indigo-500/25 text-indigo-300 text-sm font-bold flex items-center justify-center">{step.n}</span>
-                <div>
-                  <p className="text-sm font-semibold text-white">{step.t}</p>
-                  <p className="text-sm text-gray-400 mt-0.5">{step.d}</p>
+      {/* How it works — 4 steps, icon flow with arrows */}
+      <section className="px-6 pb-20 max-w-5xl mx-auto">
+        <h2 className="text-center text-2xl font-semibold text-white/80 mb-10">How it works</h2>
+        <div className="flex flex-col md:flex-row items-stretch justify-center gap-2">
+          {HOW_STEPS.map((step, i) => {
+            const Icon = step.icon
+            return (
+              <Fragment key={step.t}>
+                <div className="flex-1 rounded-2xl border border-white/8 bg-white/[0.02] p-5 text-center hover:border-white/15 transition-colors">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-500/12 border border-indigo-500/25 text-indigo-300 mb-3">
+                    <Icon size={22} />
+                  </div>
+                  <div className="text-[10px] font-semibold text-gray-300 mb-1">STEP {i + 1}</div>
+                  <p className="text-sm font-semibold text-white leading-snug">{step.t}</p>
+                  <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{step.d}</p>
                 </div>
-              </div>
-            </div>
-          ))}
+                {i < HOW_STEPS.length - 1 && (
+                  <div className="flex items-center justify-center text-gray-400 shrink-0">
+                    <ArrowRight size={18} className="hidden md:block" />
+                    <ArrowDown size={16} className="md:hidden" />
+                  </div>
+                )}
+              </Fragment>
+            )
+          })}
         </div>
       </section>
 
@@ -294,7 +264,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-600 max-w-5xl mx-auto">
+      <footer className="border-t border-white/5 px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-300 max-w-5xl mx-auto">
         <span>CounterPoints — built for truth-seekers, not partisans.</span>
         <div className="flex gap-6">
           <Link href="/app" className="hover:text-gray-400 transition-colors">App</Link>

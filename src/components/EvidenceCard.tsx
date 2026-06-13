@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { X, RotateCw } from 'lucide-react'
 import type { CounterpointCard, Verdict, SpectrumLens } from '@/types'
 import type { CompareResult } from '@/app/api/compare/route'
@@ -201,7 +201,7 @@ function FullAnalysisPanel({ card }: { card: CounterpointCard }) {
   )
 }
 
-export function EvidenceCard({ card, isActive, onSeek, onActivate, onArchive, onRerun }: Props) {
+function EvidenceCardBase({ card, isActive, onSeek, onActivate, onArchive, onRerun }: Props) {
   const [isOpen,   setIsOpen]   = useState(false)
   const [cardView, setCardView] = useState<'sources' | 'analysis'>('sources')
   const cfg = VERDICT_CONFIG[card.verdict]
@@ -228,28 +228,22 @@ export function EvidenceCard({ card, isActive, onSeek, onActivate, onArchive, on
           onActivate?.(card.claimId, card.transcriptOffsetMs ?? 0)
         }}
         onKeyDown={e => e.key === 'Enter' && (setIsOpen(v => !v), onActivate?.(card.claimId, card.transcriptOffsetMs ?? 0))}
-        className={`${cfg.headerBg} px-3 py-2.5 flex items-center gap-2 cursor-pointer select-none`}
+        className={`px-3 py-2.5 flex items-center gap-2 cursor-pointer select-none bg-white/[0.02] hover:bg-white/[0.04] transition-colors`}
       >
-        <span className="text-base shrink-0">{cfg.icon}</span>
-        {/* Claim — primary title, fills available space */}
-        <span className="text-sm text-white/88 font-medium truncate flex-1 min-w-0">{card.claim}</span>
+        {/* Verdict — prominent colored pill, the most important element */}
+        <span className={`flex items-center gap-1 ${cfg.headerBg} ${cfg.headerText} font-bold text-[10px] tracking-wide px-2 py-1 rounded-full shrink-0`}>
+          <span className="text-[11px] leading-none">{cfg.icon}</span> {cfg.label}
+        </span>
+        {/* Claim — fills available space, shown once (no body repeat) */}
+        <span className="text-sm text-white/85 truncate flex-1 min-w-0">{card.claim}</span>
         {card.cacheHit && (
           <span
-            className="text-[10px] font-medium text-indigo-400/80 border border-indigo-500/20 rounded-full px-1.5 py-0.5 shrink-0"
+            className="text-[10px] font-medium text-indigo-400/70 shrink-0"
             title={`Knowledge base hit — ${Math.round((card.cacheSimilarity ?? 1) * 100)}% match`}
           >
-            ⚡ KB
+            ⚡
           </span>
         )}
-        {card.voiceSnapshot?.stressLevel && card.voiceSnapshot.stressLevel !== 'calm' && (
-          <span className={`text-[10px] font-medium shrink-0 ${
-            card.voiceSnapshot.stressLevel === 'high' ? 'text-red-300' : 'text-yellow-300'
-          }`}>
-            🎙 {card.voiceSnapshot.stressLevel === 'high' ? 'HIGH' : 'ELEV'}
-          </span>
-        )}
-        {/* Verdict — small secondary chip, after claim */}
-        <span className={`text-[10px] font-bold tracking-wider ${cfg.headerText} shrink-0`}>{cfg.label}</span>
         {/* Timestamp */}
         {card.transcriptOffsetMs != null && card.transcriptOffsetMs > 0 && onSeek && (
           <button
@@ -281,22 +275,23 @@ export function EvidenceCard({ card, isActive, onSeek, onActivate, onArchive, on
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            {/* Claim + summary */}
+            {/* Facts-first body — claim is already in the header, so don't repeat it */}
             <div className="px-4 pt-3 pb-2 space-y-2">
-              <p className="text-sm font-semibold text-white/90 leading-relaxed select-text">
-                &ldquo;{card.claim}&rdquo;
-              </p>
-              <p className="text-sm text-gray-400 leading-relaxed">
-                <HighlightedText text={card.verdictSummary} />
-              </p>
-              {card.middleGround && (
-                <div className="rounded-lg border border-purple-500/25 bg-purple-500/[0.07] px-3 py-2 flex gap-2">
+              {/* Lead with the actual facts (the best part) */}
+              {card.middleGround ? (
+                <div className="rounded-xl border border-purple-500/25 bg-purple-500/[0.07] px-3 py-2.5 flex gap-2">
                   <span className="text-purple-300 text-sm shrink-0 mt-0.5">⚖</span>
                   <div>
                     <span className="block text-[10px] font-semibold uppercase tracking-wider text-purple-300/80 mb-0.5">The actual facts</span>
-                    <p className="text-sm text-purple-100/90 leading-relaxed"><HighlightedText text={card.middleGround} /></p>
+                    <p className="text-sm text-purple-100/90 leading-relaxed select-text"><HighlightedText text={card.middleGround} /></p>
                   </div>
                 </div>
+              ) : (
+                <p className="text-sm text-gray-300 leading-relaxed select-text"><HighlightedText text={card.verdictSummary} /></p>
+              )}
+              {/* Secondary reasoning — small, only when we already led with the facts */}
+              {card.middleGround && card.verdictSummary && (
+                <p className="text-xs text-gray-500 leading-relaxed select-text"><HighlightedText text={card.verdictSummary} /></p>
               )}
               {card.visionSnapshot?.signals?.length ? (
                 <div className="flex flex-wrap gap-1">
@@ -375,3 +370,7 @@ export function EvidenceCard({ card, isActive, onSeek, onActivate, onArchive, on
     </motion.div>
   )
 }
+
+// Memoized: a settled card shouldn't re-render on the parent's 1s video-time tick. Re-renders only
+// when its own card data / isActive changes (callbacks from the parent are stable useCallbacks).
+export const EvidenceCard = memo(EvidenceCardBase)

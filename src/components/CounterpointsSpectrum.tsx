@@ -247,7 +247,7 @@ export function CounterpointsSpectrum({ card }: Props) {
         <div className="space-y-2">
           {items.map((item, i) => (
             <SpectrumItemRow
-              key={i}
+              key={`${item.url || item.source || 'src'}-${i}`}
               item={item}
               isXSource={activeTab === 'grok' && (item.url.includes('x.com/') || item.url.includes('twitter.com/'))}
             />

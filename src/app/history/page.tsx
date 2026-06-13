@@ -174,8 +174,8 @@ export default function HistoryPage() {
 
         {!loading && sessions.length === 0 && (
           <div className="text-center py-16">
-            <p className="text-gray-600 text-sm">No sessions yet.</p>
-            <p className="text-gray-700 text-xs mt-1">Load a YouTube URL in the app to start fact-checking.</p>
+            <p className="text-gray-400 text-sm">No sessions yet.</p>
+            <p className="text-gray-500 text-xs mt-1">Load a YouTube URL in the app to start fact-checking.</p>
             <Link href="/app" className="inline-block mt-4 px-4 py-2 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-sm hover:bg-indigo-500/30 transition-colors">
               Open App
             </Link>
@@ -187,7 +187,7 @@ export default function HistoryPage() {
             const falseCount      = g.cards.filter(c => c.verdict === 'FALSE').length
             const misleadingCount = g.cards.filter(c => c.verdict === 'MISLEADING').length
             const trueCount       = g.cards.filter(c => c.verdict === 'TRUE').length
-            const appUrl = `/app?url=${encodeURIComponent(g.videoUrl)}`
+            const appUrl = g.videoId ? `/app?v=${g.videoId}` : `/app?url=${encodeURIComponent(g.videoUrl)}`
             const thumb = g.videoId ? `https://img.youtube.com/vi/${g.videoId}/mqdefault.jpg` : null
             return (
               <Link
@@ -207,16 +207,16 @@ export default function HistoryPage() {
                     {g.channelTitle && (
                       <div className="text-[11px] text-gray-500 mt-0.5 truncate">{g.channelTitle}</div>
                     )}
-                    <div className="text-[10px] text-gray-600 mt-1">{formatDate(g.latestAt)} · {g.cards.length} fact-check{g.cards.length === 1 ? '' : 's'}</div>
+                    <div className="text-[10px] text-gray-400 mt-1">{formatDate(g.latestAt)} · {g.cards.length} fact-check{g.cards.length === 1 ? '' : 's'}</div>
                   </div>
                   <div className="shrink-0 flex flex-col items-end gap-1.5">
                     <div className="flex items-center gap-2">
                       {trueCount > 0       && <span className="text-xs text-green-400">✅ {trueCount}</span>}
                       {misleadingCount > 0 && <span className="text-xs text-amber-400">⚠️ {misleadingCount}</span>}
                       {falseCount > 0      && <span className="text-xs text-red-400">❌ {falseCount}</span>}
-                      {g.cards.length === 0 && <span className="text-[10px] text-gray-700">No claims</span>}
+                      {g.cards.length === 0 && <span className="text-[10px] text-gray-500">No claims</span>}
                     </div>
-                    <div className="text-[10px] text-gray-600">{g.hasTranscript ? 'Transcript saved' : 'No transcript'}</div>
+                    <div className="text-[10px] text-gray-400">{g.hasTranscript ? 'Transcript saved' : 'No transcript'}</div>
                   </div>
                 </div>
               </Link>

@@ -193,7 +193,7 @@ export default function CostsPage() {
                     </div>
                   </div>
                   <p className="text-xs text-gray-400 mb-1">{r.usedFor}</p>
-                  <p className="text-[11px] text-gray-600">{r.pricing}</p>
+                  <p className="text-[11px] text-gray-400">{r.pricing}</p>
                 </div>
               ))}
             </div>
@@ -251,7 +251,7 @@ export default function CostsPage() {
                   <span className="text-xs font-mono text-green-300 shrink-0">{r.cost}</span>
                 </div>
                 <p className="text-xs text-gray-400">Replaces: {r.swap}</p>
-                <p className="text-[11px] text-gray-600 mt-0.5">Trade-off: {r.tradeoff}</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Trade-off: {r.tradeoff}</p>
               </div>
             ))}
           </div>
@@ -289,7 +289,7 @@ export default function CostsPage() {
               ['Webshare dashboard', 'proxy bandwidth vs the 1 GB plan'],
             ].map(([k, v], i) => (
               <div key={k} className={`flex gap-3 p-3 ${i > 0 ? 'border-t border-white/6' : ''} bg-[#0d0d14]`}>
-                <CheckCircle2 size={14} className="text-gray-600 shrink-0 mt-0.5" />
+                <CheckCircle2 size={14} className="text-gray-400 shrink-0 mt-0.5" />
                 <span><strong className="text-white">{k}</strong> — <span className="text-gray-400">{v}</span></span>
               </div>
             ))}
@@ -299,15 +299,15 @@ export default function CostsPage() {
 
         {/* Footer note */}
         <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4 text-[11px] text-gray-500 flex gap-2">
-          <Database size={14} className="text-gray-600 shrink-0 mt-0.5" />
+          <Database size={14} className="text-gray-400 shrink-0 mt-0.5" />
           <span>
             All figures are estimates and move with usage and provider pricing. The cheapest path to scale is aggressive caching + slowing the analyze loop + moving high-frequency calls local. The proxy ($3.50/mo) is the only true fixed cost; everything else scales to near-zero at idle because Cloud Run runs at min-instances 0.
           </span>
         </div>
 
         <div className="mt-8 flex items-center gap-2">
-          <Mic size={14} className="text-gray-600" />
-          <span className="text-[11px] text-gray-600">Generated from the live codebase — models, endpoints, and Cloud Run config as deployed.</span>
+          <Mic size={14} className="text-gray-400" />
+          <span className="text-[11px] text-gray-400">Generated from the live codebase — models, endpoints, and Cloud Run config as deployed.</span>
         </div>
       </main>
     </div>

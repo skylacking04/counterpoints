@@ -112,6 +112,7 @@ function isDuplicateClaim(text: string, recent: string[]): boolean {
 
 export default function Home() {
   const [urlInput,           setUrlInput]           = useState('')
+  const [pendingAutoLoad,    setPendingAutoLoad]    = useState<string | null>(null)
   const [videoId,            setVideoId]            = useState<string | null>(null)
   const [xPost,              setXPost]              = useState<XPostData | null>(null)
   const [videoTitle,         setVideoTitle]         = useState<string | null>(null)
@@ -196,12 +197,14 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem('cp_settings')
     if (saved) setSettings(JSON.parse(saved))
-    // Auto-load URL from query param (e.g. from history page)
+    // Auto-load from query param (e.g. clicking a history item).
+    // Prefer the clean ?v=<videoId>; fall back to legacy ?url=.
     const params = new URLSearchParams(window.location.search)
-    const autoUrl = params.get('url')
+    const v = params.get('v')
+    const autoUrl = v ? `https://www.youtube.com/watch?v=${v}` : params.get('url')
     if (autoUrl) {
       setUrlInput(autoUrl)
-      setTimeout(() => { setUrlInput(autoUrl) }, 100)
+      setPendingAutoLoad(autoUrl)   // a one-shot effect (below) triggers the actual load + restore
     }
   }, [])
 
@@ -345,7 +348,16 @@ export default function Home() {
     const finishCard = (card: CounterpointCard) => {
       if (videoVersionRef.current !== myVersion) return
       setCheckingClaim(null)
-      setCards(prev => prev.map(c => c.id === claimId ? card : c))
+      setCards(prev => prev.map(c => {
+        if (c.id !== claimId) return c
+        // Merge: keep already-streamed lens items if the final card's lens came back empty.
+        const keys = ['left', 'center', 'right', 'alt', 'grok'] as const
+        const mergedSpectrum = { ...card.spectrum }
+        for (const k of keys) {
+          if (!(mergedSpectrum[k]?.length) && c.spectrum[k]?.length) mergedSpectrum[k] = c.spectrum[k]
+        }
+        return { ...card, spectrum: mergedSpectrum }
+      }))
       setLatestVerdict({ verdict: card.verdict, claim: card.claim })
       setClaimVerdicts(prev => new Map(prev).set(card.claimId, card.verdict))
       // Persist card to session
@@ -392,7 +404,8 @@ export default function Home() {
             if (chunk.type === 'lens' && chunk.key) {
               setCards(prev => prev.map(c =>
                 c.id === claimId
-                  ? { ...c, spectrum: { ...c.spectrum, [chunk.key!]: chunk.items ?? [] } }
+                  // Don't let a late empty update wipe a lens that already has items (prevents flicker).
+                  ? { ...c, spectrum: { ...c.spectrum, [chunk.key!]: (chunk.items?.length ? chunk.items : c.spectrum[chunk.key as keyof typeof c.spectrum] ?? []) } }
                   : c
               ))
             }
@@ -620,6 +633,33 @@ export default function Home() {
     seekTo(offsetMs / 1000)
   }, [seekTo])
 
+  // Apply a saved session's transcript + fact-checks to the UI (used by history click + banner)
+  const restoreSessionData = useCallback((session: import('@/types').CpSession) => {
+    if ((session.transcript?.length ?? 0) > 0) {
+      setFullTranscript(session.transcript)
+      setTranscriptStatus('ready')
+      setYtLinesPreloaded(true)
+      transcript.appendAll(session.transcript)
+      setTranscriptTab('cc')
+    }
+    if ((session.cards?.length ?? 0) > 0) {
+      setCards(session.cards)
+      const vc = { true: 0, misleading: 0, false: 0 }
+      let score = 0
+      const vm = new Map<string, import('@/types').Verdict>()
+      for (const c of session.cards) {
+        if (c.verdict === 'TRUE')       { vc.true++;       score = Math.max(0, score - 5) }
+        if (c.verdict === 'MISLEADING') { vc.misleading++; score = Math.min(100, score + 15) }
+        if (c.verdict === 'FALSE')      { vc.false++;      score = Math.min(100, score + 30) }
+        vm.set(c.claimId, c.verdict)
+      }
+      setVerdictCounts(vc)
+      setLieScore(score)
+      setClaimVerdicts(vm)
+    }
+    setSessionRestoreBanner(null)
+  }, [transcript])
+
   // Archive/dismiss a fact-check card — removes it from view and remembers the claim so it
   // isn't re-detected. The debounced cards-save then persists the reduced set.
   const handleArchiveCard = useCallback((cardId: string) => {
@@ -677,9 +717,10 @@ export default function Home() {
     }
   }
 
-  const handleLoadUrl = async () => {
-    if (isXUrl(urlInput)) { await handleLoadX(); return }
-    const id = extractVideoId(urlInput)
+  const handleLoadUrl = async (urlArg?: string, opts?: { autoRestore?: boolean }) => {
+    const url = urlArg ?? urlInput
+    if (isXUrl(url)) { await handleLoadX(); return }
+    const id = extractVideoId(url)
     if (!id) return
 
     setVideoId(id)
@@ -724,14 +765,22 @@ export default function Home() {
     if (quickMeta?.title) setVideoTitle(v => v ?? quickMeta.title)
     setIsYoutubeLive(!!live)
 
-    // If we have a cached session with cards, offer restore
+    // If we have a cached session with saved work:
+    //  - from history / shared link (autoRestore) → restore it immediately, no banner
+    //  - manual paste → offer the restore banner (don't clobber unexpectedly)
+    let restored = false
     if (cached && ((cached.cards?.length ?? 0) > 0 || (cached.transcript?.length ?? 0) > 0)) {
       setSessionId(cached.sessionId)
-      setSessionRestoreBanner({
-        sessionId: cached.sessionId,
-        cardCount: cached.cards?.length ?? 0,
-        transcriptCount: cached.transcript?.length ?? 0,
-      })
+      if (opts?.autoRestore) {
+        restoreSessionData(cached)
+        restored = (cached.transcript?.length ?? 0) > 0   // skip re-fetching/re-applying the transcript
+      } else {
+        setSessionRestoreBanner({
+          sessionId: cached.sessionId,
+          cardCount: cached.cards?.length ?? 0,
+          transcriptCount: cached.transcript?.length ?? 0,
+        })
+      }
     } else {
       // New session
       const newSessionId = Math.random().toString(36).slice(2) + Date.now().toString(36)
@@ -743,7 +792,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: newSessionId, userId: userIdRef.current ?? '', videoId: id,
-          videoUrl: urlInput, videoTitle: meta?.title ?? quickMeta?.title ?? null,
+          videoUrl: url, videoTitle: meta?.title ?? quickMeta?.title ?? null,
           channelTitle: meta?.channelTitle ?? quickMeta?.channelTitle ?? null,
           createdAt: Date.now(), updatedAt: Date.now(),
         }),
@@ -769,7 +818,9 @@ export default function Home() {
     }
 
     const raw = quickEntries ?? []
-    if (raw.length > 0 || live) {
+    if (restored) {
+      // Transcript already applied from the saved session — don't re-fetch/re-append (would duplicate lines).
+    } else if (raw.length > 0 || live) {
       const loaded = (!live && raw.length > 0) ? chunkTranscriptEntries(raw) : raw
       setTranscriptStatus(loaded.length > 0 ? 'ready' : (live ? 'live' as TranscriptStatus : 'empty'))
       applyTranscript(loaded, sessionIdRef.current)
@@ -818,6 +869,15 @@ export default function Home() {
       setIsLive(true)
     }
   }
+
+  // One-shot: when arriving via ?v= / ?url= (e.g. a history click), auto-load the video and
+  // auto-restore its saved transcript + fact-checks.
+  useEffect(() => {
+    if (!pendingAutoLoad) return
+    handleLoadUrl(pendingAutoLoad, { autoRestore: true })
+    setPendingAutoLoad(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAutoLoad])
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
@@ -908,7 +968,7 @@ export default function Home() {
           className="flex-1 bg-white/5 border border-white/8 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-white/20"
         />
         <button
-          onClick={handleLoadUrl}
+          onClick={() => handleLoadUrl()}
           disabled={!urlInput || transcriptStatus === 'loading' || transcriptStatus === 'ai-loading'}
           className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-sm disabled:opacity-40 flex items-center gap-2"
         >
