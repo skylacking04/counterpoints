@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Dark background circle -->
+  <circle cx="32" cy="32" r="32" fill="#0a0a0f"/>
+  <!-- Scales of balance — left pan (TRUE/green) -->
+  <rect x="8" y="38" width="18" height="3" rx="1.5" fill="#22c55e"/>
+  <!-- Scales — right pan (FALSE/red) -->
+  <rect x="38" y="42" width="18" height="3" rx="1.5" fill="#ef4444"/>
+  <!-- Center pillar -->
+  <rect x="30.5" y="18" width="3" height="26" rx="1.5" fill="#e2e8f0"/>
+  <!-- Cross beam (tilted to show imbalance) -->
+  <path d="M10 36 L54 32" stroke="#e2e8f0" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Chains left -->
+  <line x1="17" y1="36" x2="17" y2="38" stroke="#e2e8f0" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Chains right -->
+  <line x1="47" y1="34" x2="47" y2="42" stroke="#e2e8f0" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Top ornament (fulcrum cap) -->
+  <circle cx="32" cy="16" r="3" fill="#6366f1"/>
+  <!-- Small check on left pan -->
+  <path d="M12 40.5 l3 2.5 l5-5" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Small X on right pan -->
+  <path d="M42 44.5 l3-3 M42 41.5 l3 3" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
