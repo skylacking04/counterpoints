@@ -1,0 +1,38 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "cp_sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cp_sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "videoId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cp_claims",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "topicBucket", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cp_source_stats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "topicBucket", "order": "ASCENDING" },
+        { "fieldPath": "totalUses", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

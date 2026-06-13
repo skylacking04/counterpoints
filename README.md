@@ -7,9 +7,12 @@ a verdict with the *actual facts* in the middle.
 
 Built for the [This Week in Startups $5K "Fact Checker for Podcasts" bounty](https://launch1.notion.site/5K-Bounty-Create-a-Fact-Checker-App-for-Podcasts).
 
+- **GitHub:** https://github.com/skylacking04/counterpoints
 - **Live app:** https://counterpoints-app-zdku5kri5a-uc.a.run.app
-- **Cost & architecture page:** [/costs](https://counterpoints-app-zdku5kri5a-uc.a.run.app/costs)
+- **Cost & architecture page:** https://counterpoints-app-zdku5kri5a-uc.a.run.app/costs
 - **Cost audit worksheet:** [`COST_AUDIT.md`](./COST_AUDIT.md)
+
+> **Runs fully locally** with `npm run dev` — no cloud deploy needed to try it. (Cloud Run deploy is optional, for hosting.)
 
 ---
 
@@ -116,22 +119,34 @@ caption-less videos still work via the slower AI-transcription fallback.
 
 ### C) Live audio capture (no cookies/proxy needed)
 For live shows, click **📺 Capture Video Audio** (or **🎙 Mic**) — the browser captures tab/mic
-audio and transcribes it locally via Whisper. See the in-app **"Setup guide"** for the per-browser
-screen-share steps (Chrome "Chrome Tab" + "share tab audio"; Brave "Window" + "share system audio").
+audio, sends it to the server, and transcribes it via **Whisper (Groq)**, with a Gemini fallback.
+See the in-app **"Setup guide"** for the per-browser screen-share steps (Chrome "Chrome Tab" +
+"share tab audio"; Brave "Window" + "share system audio").
 
 ---
 
 ## Deploy (Google Cloud Run)
 
 Secrets are stored in **Google Secret Manager** and mounted at deploy time — they are never in the
-image or the repo. `deploy.sh` wires them up:
+image or the repo. `deploy.sh` wires them up.
 
 ```bash
-# One-time: create the secrets (names must match deploy.sh)
+# 1) One-time: enable the required APIs on a fresh project
+gcloud services enable run.googleapis.com aiplatform.googleapis.com \
+  firestore.googleapis.com secretmanager.googleapis.com \
+  youtube.googleapis.com cloudbuild.googleapis.com
+
+# 2) Deploy the required Firestore composite indexes (history + caches need these,
+#    or queries fail with FAILED_PRECONDITION). Uses firestore.indexes.json in this repo:
+firebase deploy --only firestore:indexes      # (or create them via gcloud firestore indexes composite create)
+
+# 3) Create the secrets (names must match deploy.sh)
 printf '%s' "$YOUR_KEY" | gcloud secrets create gemini-key --data-file=-
 #   …repeat for: yt-api-key, xai-api-key, jina-api-key, tavily-key[-2/-3],
 #   groq-key, yt-cookies (optional), proxy-url (optional)
 
+# 4) Deploy (deploy.sh auto-grants the IAM roles: Vertex user, datastore.user,
+#    storage.objectAdmin, secret accessor)
 ./deploy.sh        # builds + deploys to Cloud Run (min-instances 0 → scales to zero)
 ```
 

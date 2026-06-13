@@ -121,10 +121,10 @@ export function TranscriptPanel({
               isClaim && verdict
                 ? VERDICT_STRIP[verdict]
                 : isClaim
-                ? 'border-l-[3px] border-blue-500/40 bg-blue-500/5'
+                ? 'border-l-2 border-blue-500/30 bg-blue-500/[0.04]'
                 : isCurrent
-                ? 'border-l-[3px] border-white/50 bg-white/7'
-                : 'hover:bg-white/4 border-l-[3px] border-transparent'
+                ? 'border-l-2 border-white/30 bg-white/[0.05]'
+                : 'hover:bg-white/[0.03] border-l-2 border-transparent'
             } ${isActive ? 'ring-1 ring-white/15' : ''}`}
           >
             {/* Timestamp */}
@@ -159,7 +159,7 @@ export function TranscriptPanel({
                   {verdict ? (
                     <>
                       <span>{VERDICT_BADGE[verdict]}</span>
-                      <span className="text-[10px] text-white/40">↗ fact-check</span>
+                      <span className="text-[10px] text-white/40 opacity-0 group-hover:opacity-100 transition-opacity">↗ fact-check</span>
                     </>
                   ) : (
                     <span className="text-blue-400 opacity-70 animate-pulse text-[10px]">● checking…</span>

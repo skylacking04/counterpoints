@@ -460,8 +460,7 @@ export default function Home() {
       }
       const claimLines = linesRef.current.filter(l => (l.source ?? 'live') === tab)
 
-      // Process all claims in parallel so the feed populates simultaneously
-      await Promise.all(fresh.map(async claim => {
+      const checkOne = async (claim: import('@/types').Claim) => {
         let bestLine: TranscriptLine | undefined
         let bestScore = 0
         for (const line of claimLines) {
@@ -469,10 +468,22 @@ export default function Home() {
           if (score > bestScore) { bestScore = score; bestLine = line }
         }
         if (!bestLine) bestLine = claimLines.at(-1)
-
         if (bestLine) transcript.markClaim(bestLine.id, claim.id)
         await processClaim(claim.text, claim.id, claim.topic, bestLine?.offsetMs ?? 0)
-      }))
+      }
+
+      // Process with limited concurrency so the FIRST results land in ~10s instead of all ~15
+      // claims contending for rate-limited backends and finishing together ~30s later. A pool of
+      // 3 keeps a steady trickle: each card flips from "checking…" to a verdict as it completes.
+      const myVer = videoVersionRef.current
+      const CONCURRENCY = 3
+      let nextIdx = 0
+      const worker = async () => {
+        while (nextIdx < fresh.length && videoVersionRef.current === myVer) {
+          await checkOne(fresh[nextIdx++])
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, fresh.length) }, worker))
     } finally {
       processingRef.current = false
       setIsAnalyzing(false)
@@ -1282,15 +1293,26 @@ export default function Home() {
           >
             {/* Fact-checks header with expand button */}
             <div className="shrink-0 flex items-center justify-between px-1 pt-0.5">
-              <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider">Fact-Checks</span>
+              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Fact-Checks</span>
               <button
                 onClick={() => setExpandedPanel(p => p === 'checks' ? null : 'checks')}
                 title={expandedPanel === 'checks' ? 'Restore split view' : 'Expand (Esc to exit)'}
-                className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-600 hover:text-white hover:border-white/20"
+                className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-500 hover:text-white hover:border-white/20"
               >
                 {expandedPanel === 'checks' ? '⊡' : '⛶'}
               </button>
             </div>
+
+            {/* One-line summary — calm first-impression context */}
+            {cards.length > 0 && (
+              <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px]">
+                <span className="text-gray-300 font-medium">{cards.length} claim{cards.length === 1 ? '' : 's'} checked</span>
+                {verdictCounts.true > 0       && <span className="text-green-400">✓ {verdictCounts.true} verified</span>}
+                {verdictCounts.misleading > 0 && <span className="text-amber-400">⚠ {verdictCounts.misleading} misleading</span>}
+                {verdictCounts.false > 0      && <span className="text-red-400">✕ {verdictCounts.false} false</span>}
+                {checkingClaim && <span className="text-indigo-400/70 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" /> checking…</span>}
+              </div>
+            )}
 
             {/* PantsOnFire — full size */}
             <div className="shrink-0 rounded-xl border border-white/6 bg-[#0d0d14] overflow-hidden">
