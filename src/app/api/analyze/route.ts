@@ -40,7 +40,9 @@ A statement SHOULD be checked if it asserts something that could be true or fals
 - Attributions / quotes ("X said Y", "according to Z")
 - Historical, scientific, health, business, or product claims
 
-Do NOT flag: opinions ("I think it's great"), feelings, jokes, questions, greetings, vague chit-chat, or anything already in the "already fact-checked" list above.
+Do NOT flag: opinions ("I think it's great"), feelings, jokes, questions, greetings, vague chit-chat, anything already in the "already fact-checked" list, OR minor/trivial/self-evident statements a viewer wouldn't care to verify.
+
+BE SELECTIVE. Prioritize the MOST significant, consequential claims — the ones a skeptical viewer would actually want checked (surprising stats, bold assertions, disputed facts). Skip atomized fragments and obvious throwaway lines even if technically checkable. Return **at most 4** claims, the most important ones. Fewer, high-quality claims beat many trivial ones.
 
 Return JSON ONLY (no markdown fences). Array, empty if nothing checkable:
 [{
@@ -49,7 +51,7 @@ Return JSON ONLY (no markdown fences). Array, empty if nothing checkable:
   "confidence": 0.0-1.0
 }]
 
-Include statements with confidence >= 0.5.`
+Include only statements with confidence >= 0.6.`
 
   try {
     const raw = await callLLM([
@@ -60,13 +62,19 @@ Include statements with confidence >= 0.5.`
     const clean = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     const parsed = JSON.parse(clean) as Array<{ text: string; topic: string; confidence: number }>
 
-    const claims: Claim[] = parsed.map(c => ({
-      id: uuid(),
-      text: c.text,
-      topic: c.topic,
-      confidence: c.confidence,
-      transcriptOffsetMs,
-    }))
+    // Enforce selectivity: confidence floor + keep only the strongest few per scan, so the feed
+    // isn't flooded with trivial atomized claims.
+    const claims: Claim[] = parsed
+      .filter(c => c.text?.trim() && (c.confidence ?? 0) >= 0.6)
+      .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
+      .slice(0, 4)
+      .map(c => ({
+        id: uuid(),
+        text: c.text,
+        topic: c.topic,
+        confidence: c.confidence,
+        transcriptOffsetMs,
+      }))
 
     return NextResponse.json({ claims })
   } catch (err) {
