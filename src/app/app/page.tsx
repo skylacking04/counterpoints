@@ -979,8 +979,8 @@ export default function Home() {
         )}
 
         <nav className="hidden md:flex items-center gap-1 ml-2">
-          <Link href="/"      className="text-xs text-gray-500 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-white/6 transition-colors">Home</Link>
-          <Link href="/about" className="text-xs text-gray-500 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-white/6 transition-colors">About</Link>
+          <Link href="/"      className="text-xs text-gray-300 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-white/6 transition-colors">Home</Link>
+          <Link href="/about" className="text-xs text-gray-300 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-white/6 transition-colors">About</Link>
         </nav>
 
         <div className="flex-1" />
@@ -1020,21 +1020,21 @@ export default function Home() {
         <Link
           href="/history"
           title="History"
-          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white border border-white/10 hover:border-white/20 rounded-lg px-3 py-1.5 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white border border-white/10 hover:border-white/20 rounded-lg px-3 py-1.5 transition-colors"
         >
           <HistoryIcon size={14} /> <span className="hidden sm:inline">History</span>
         </Link>
         <button
           onClick={() => setShowSources(true)}
           title="Sources"
-          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white border border-white/10 hover:border-white/20 rounded-lg px-3 py-1.5 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white border border-white/10 hover:border-white/20 rounded-lg px-3 py-1.5 transition-colors"
         >
           <Radio size={14} /> <span className="hidden sm:inline">Sources</span>
         </button>
         <button
           onClick={() => setShowSettings(true)}
           title="Settings"
-          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white border border-white/10 hover:border-white/20 rounded-lg px-3 py-1.5 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white border border-white/10 hover:border-white/20 rounded-lg px-3 py-1.5 transition-colors"
         >
           <SettingsIcon size={14} /> <span className="hidden sm:inline">Settings</span>
         </button>
@@ -1135,7 +1135,7 @@ export default function Home() {
           >
             Restore
           </button>
-          <button onClick={() => setSessionRestoreBanner(null)} className="text-gray-600 hover:text-white shrink-0">✕</button>
+          <button onClick={() => setSessionRestoreBanner(null)} className="text-gray-400 hover:text-white shrink-0">✕</button>
         </div>
       )}
 
@@ -1146,7 +1146,7 @@ export default function Home() {
 
       {/* Setup guide link */}
       {!isLive && (
-        <div className="mx-4 mt-1 flex items-center gap-2 text-[10px] text-gray-600">
+        <div className="mx-4 mt-1 flex items-center gap-2 text-[10px] text-gray-400">
           <span>Need help capturing audio?</span>
           <button onClick={() => setShowPermissionsGuide(true)} className="text-indigo-400/70 hover:text-indigo-300 underline">
             Setup guide →
@@ -1220,7 +1220,7 @@ export default function Home() {
               key={key}
               onClick={() => { setMobileTab(key); if (key !== 'transcript') setRightTab(key) }}
               className={`flex-1 py-2 text-[13px] font-medium transition-colors whitespace-nowrap ${
-                mobileTab === key ? 'text-white border-b-2 border-indigo-400' : 'text-gray-500'
+                mobileTab === key ? 'text-white border-b-2 border-indigo-400' : 'text-gray-300'
               }`}
             >
               {label}
@@ -1243,7 +1243,7 @@ export default function Home() {
             {/* Transcript panel header */}
             <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-white/6">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider">Transcript</span>
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Transcript</span>
                 {(transcriptStatus === 'loading' || transcriptStatus === 'ai-loading') && (
                   <span className="text-[10px] text-yellow-400 flex items-center gap-1">
                     <span className="w-2 h-2 border border-yellow-400/50 border-t-yellow-400 rounded-full animate-spin" />
@@ -1263,7 +1263,7 @@ export default function Home() {
                         key={t}
                         onClick={() => setTranscriptTab(t)}
                         className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                          transcriptTab === t ? 'bg-white/10 text-white border-white/20' : 'text-gray-600 border-transparent hover:text-gray-400'
+                          transcriptTab === t ? 'bg-white/10 text-white border-white/20' : 'text-gray-400 border-transparent hover:text-gray-400'
                         }`}
                       >
                         {t === 'live' ? 'Live' : 'CC'}
@@ -1276,7 +1276,7 @@ export default function Home() {
                 {ytLinesPreloaded && transcript.lines.length > 0 && (
                   <button
                     onClick={() => setScrollTrigger(n => n + 1)}
-                    className="text-[10px] px-2 py-0.5 rounded border border-white/10 text-gray-500 hover:text-white hover:border-white/20"
+                    className="text-[10px] px-2 py-0.5 rounded border border-white/10 text-gray-300 hover:text-white hover:border-white/20"
                   >
                     ▶ Now
                   </button>
@@ -1285,7 +1285,7 @@ export default function Home() {
                   <button
                     onClick={analyzeNow}
                     disabled={isAnalyzing}
-                    className="text-[10px] px-2 py-0.5 rounded border border-white/10 text-gray-500 hover:text-white hover:border-white/20 disabled:opacity-40 flex items-center gap-1"
+                    className="text-[10px] px-2 py-0.5 rounded border border-white/10 text-gray-300 hover:text-white hover:border-white/20 disabled:opacity-40 flex items-center gap-1"
                   >
                     {isAnalyzing ? <><span className="w-2 h-2 border border-white/30 border-t-white rounded-full animate-spin" /> Analyzing…</> : '⚡ Analyze'}
                   </button>
@@ -1293,7 +1293,7 @@ export default function Home() {
                 <button
                   onClick={() => setExpandedPanel(p => p === 'transcript' ? null : 'transcript')}
                   title={expandedPanel === 'transcript' ? 'Restore split view' : 'Expand (Esc to exit)'}
-                  className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-600 hover:text-white hover:border-white/20"
+                  className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-400 hover:text-white hover:border-white/20"
                 >
                   {expandedPanel === 'transcript' ? '⊡' : '⛶'}
                 </button>
@@ -1303,7 +1303,7 @@ export default function Home() {
             <div className="flex-1 min-h-0 relative" ref={transcriptAreaRef}>
               <VerifyTooltip containerRef={transcriptAreaRef} onBreakdown={text => handleManualCheck(text, 0)} />
               {transcript.lines.length === 0 && (
-                <p className="absolute inset-0 flex items-center justify-center text-xs text-gray-600 italic p-4 text-center">
+                <p className="absolute inset-0 flex items-center justify-center text-xs text-gray-400 italic p-4 text-center">
                   {transcriptStatus === 'ready'
                     ? (isYoutubeLive
                         ? 'Live stream — CC captions unavailable. Click 📺 Capture Video Audio.'
@@ -1390,13 +1390,13 @@ export default function Home() {
                   ))}
                 </div>
               ) : (
-                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Fact-Checks</span>
+                <span className="text-[10px] font-semibold text-gray-300 uppercase tracking-wider">Fact-Checks</span>
               )}
               <div className="flex-1" />
               <button
                 onClick={() => setExpandedPanel(p => p === 'checks' ? null : 'checks')}
                 title={expandedPanel === 'checks' ? 'Restore split view' : 'Expand (Esc to exit)'}
-                className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-500 hover:text-white hover:border-white/20"
+                className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-300 hover:text-white hover:border-white/20"
               >
                 {expandedPanel === 'checks' ? '⊡' : '⛶'}
               </button>
@@ -1436,7 +1436,7 @@ export default function Home() {
             )}
             {/* Nothing checked yet */}
             {cards.length === 0 && transcriptStatus !== 'idle' && (
-              <p className="text-xs text-gray-600 italic text-center py-8">
+              <p className="text-xs text-gray-400 italic text-center py-8">
                 {transcriptStatus === 'ready' || isLive ? 'Monitoring for claims…' : 'Load a video to start fact-checking.'}
               </p>
             )}
@@ -1463,7 +1463,7 @@ export default function Home() {
                 {manualCards.length > 0
                   ? manualCards.map(renderCard)
                   : cards.length > 0 && (
-                    <p className="text-xs text-gray-600 italic text-center py-6 px-3">
+                    <p className="text-xs text-gray-400 italic text-center py-6 px-3">
                       Click any transcript sentence — or highlight text — to fact-check it here.
                     </p>
                   )}
@@ -1475,7 +1475,7 @@ export default function Home() {
               autoCards.length > 0
                 ? autoCards.map(renderCard)
                 : cards.length > 0 && (
-                  <p className="text-xs text-gray-600 italic text-center py-6 px-3">
+                  <p className="text-xs text-gray-400 italic text-center py-6 px-3">
                     No auto-checks yet — they appear here as claims are detected.
                   </p>
                 )
@@ -1511,7 +1511,7 @@ export default function Home() {
           </a>
         </nav>
         <div className="flex-1" />
-        <span className="text-[11px] text-gray-500 hidden sm:inline">Watch anything. See every side.</span>
+        <span className="text-[11px] text-gray-300 hidden sm:inline">Watch anything. See every side.</span>
       </footer>
 
       {showSources && <SourcesPanel onClose={() => setShowSources(false)} />}

@@ -425,8 +425,10 @@ Audit the verdict. Is it actually supported by THIS evidence (no overreach, no a
             const r = JSON.parse(reviewRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim())
             const rank: Record<Verdict, number> = { FALSE: 3, TRUE: 3, MISLEADING: 2, UNVERIFIED: 1 }
             const cv = r.correctedVerdict as Verdict | null
-            // Apply only if the reviewer is weakening the verdict (lower/equal rank), never strengthening.
-            if (r.supported === false && cv && cv !== verdict && rank[cv] <= rank[verdict]) {
+            // Apply only if the reviewer is STRICTLY weakening the verdict. `<` (not `<=`) is critical:
+            // TRUE and FALSE share rank 3, so `<=` would let the reviewer flip a corroborated TRUE
+            // straight to FALSE (and vice-versa). `<` permits only TRUE/FALSE → MISLEADING/UNVERIFIED.
+            if (r.supported === false && cv && cv !== verdict && rank[cv] < rank[verdict]) {
               verdict = cv
               if (typeof r.correctedSummary === 'string' && r.correctedSummary !== 'null') {
                 verdictSummary = r.correctedSummary

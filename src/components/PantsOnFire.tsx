@@ -133,7 +133,7 @@ export function PantsOnFire({ score, verdictCounts, stressLevel, cards = [], com
             <CredibilityGauge score={score} color={level.color} />
           </motion.div>
           <div className="font-bold text-sm" style={{ color: level.color }}>{level.label}</div>
-          <div className="text-[10px] text-gray-600 hidden sm:block">{level.sub}</div>
+          <div className="text-[10px] text-white/80 hidden sm:block">{level.sub}</div>
           <div className="flex items-center gap-3 ml-auto">
             {verdictCounts.true > 0 && (
               <span className="flex items-center gap-0.5 text-green-400 text-xs">✅ {verdictCounts.true}</span>
