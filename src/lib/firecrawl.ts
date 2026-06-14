@@ -61,7 +61,16 @@ export async function searchArticles(
   domains?: string[],
   limit = 5,
   lens = 'center',
+  opts: { preferGrounding?: boolean } = {},
 ): Promise<ArticleResult[]> {
+  // For the consensus/institutional path, prefer REAL Google grounding first — it surfaces the
+  // canonical source (Wikipedia, TechCrunch, etc.) for factual/historical claims that domain-locked
+  // Tavily misses (the Weblogs "verifiable → no source" failure). Other lenses stay Tavily-first.
+  if (opts.preferGrounding) {
+    const grounded = await searchWithGemini(query, lens, domains ?? [], limit)
+    if (grounded.length > 0) { console.log(`[searchArticles] ${lens}: grounded-primary=${grounded.length}`); return grounded }
+  }
+
   // Primary: Tavily with domain restriction — fast (~1-2s) and the key now has credits.
   const tavDomain = await tavilyFallback(query, domains, limit)
   if (tavDomain.length > 0) { console.log(`[searchArticles] ${lens}: tavily-domain=${tavDomain.length}`); return tavDomain }

@@ -168,11 +168,11 @@ export function TranscriptPanel({
               )}
             </span>
 
-            {/* ⚡ Check — always visible, not just on hover */}
+            {/* ⚡ Check — always visible on every line so it's discoverable (not hover-only) */}
             {!isClaim && onManualCheck && line.text.trim().length > 20 && (
               <button
                 onClick={() => onManualCheck(line.text, line.offsetMs)}
-                className="shrink-0 self-start mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400/60 hover:bg-indigo-500/25 hover:text-indigo-300 hover:border-indigo-500/40 transition-all whitespace-nowrap opacity-0 group-hover:opacity-100"
+                className="shrink-0 self-start mt-0.5 text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400/70 hover:bg-indigo-500/25 hover:text-indigo-300 hover:border-indigo-500/40 transition-all whitespace-nowrap"
                 title="Fact-check this line"
               >
                 ⚡ Check

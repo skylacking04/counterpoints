@@ -1,4 +1,4 @@
-import type { SourceProfile } from '@/types'
+import type { SourceProfile, SpectrumLens, TopicCategory } from '@/types'
 
 export const SOURCE_DB: SourceProfile[] = [
 
@@ -9,16 +9,18 @@ export const SOURCE_DB: SourceProfile[] = [
   { domain: 'bbc.co.uk',             bias: 'center',       reliability: 4, allSidesRating: 'Center',       label: 'British public broadcaster' },
 
   // ── ENCYCLOPEDIAS / PRIMARY REFERENCE (highest for historical/factual claims) ─
-  { domain: 'en.wikipedia.org',      bias: 'center',       reliability: 4, label: 'Wikipedia — community-edited encyclopedia' },
-  { domain: 'wikipedia.org',         bias: 'center',       reliability: 4, label: 'Wikipedia' },
+  // Wikipedia is flagged establishment — community-edited but enforces an institutional
+  // consensus narrative on contested topics (the COVID/vaccine editorial example).
+  { domain: 'en.wikipedia.org',      bias: 'center',       reliability: 4, establishment: true, label: 'Wikipedia — community-edited encyclopedia' },
+  { domain: 'wikipedia.org',         bias: 'center',       reliability: 4, establishment: true, label: 'Wikipedia' },
   { domain: 'britannica.com',        bias: 'center',       reliability: 5, label: 'Encyclopædia Britannica' },
   { domain: 'history.com',           bias: 'center',       reliability: 4, label: 'History Channel editorial' },
 
-  // ── FACT-CHECKERS ─────────────────────────────────────────────────────────
-  { domain: 'factcheck.org',         bias: 'center',       reliability: 5, allSidesRating: 'Center',       label: 'Fact-checker' },
-  { domain: 'politifact.com',        bias: 'center',       reliability: 4, allSidesRating: 'Center',       label: 'Fact-checker' },
-  { domain: 'snopes.com',            bias: 'center',       reliability: 4, allSidesRating: 'Center',       label: 'Fact-checker' },
-  { domain: 'fullfact.org',          bias: 'center',       reliability: 4, allSidesRating: 'Center',       label: 'UK fact-checker' },
+  // ── FACT-CHECKERS (institutional gatekeepers → establishment) ──────────────
+  { domain: 'factcheck.org',         bias: 'center',       reliability: 5, establishment: true, allSidesRating: 'Center', label: 'Fact-checker' },
+  { domain: 'politifact.com',        bias: 'center',       reliability: 4, establishment: true, allSidesRating: 'Center', label: 'Fact-checker' },
+  { domain: 'snopes.com',            bias: 'center',       reliability: 4, establishment: true, allSidesRating: 'Center', label: 'Fact-checker' },
+  { domain: 'fullfact.org',          bias: 'center',       reliability: 4, establishment: true, allSidesRating: 'Center', label: 'UK fact-checker' },
 
   // ── CENTER / MAINSTREAM ───────────────────────────────────────────────────
   { domain: 'thehill.com',           bias: 'center',       reliability: 4, allSidesRating: 'Center' },
@@ -96,17 +98,23 @@ export const SOURCE_DB: SourceProfile[] = [
   { domain: 'census.gov',            bias: 'center',       reliability: 5, label: 'US Census Bureau' },
   { domain: 'cbo.gov',               bias: 'center',       reliability: 5, label: 'Congressional Budget Office' },
   { domain: 'bls.gov',               bias: 'center',       reliability: 5, label: 'Bureau of Labor Statistics' },
-  { domain: 'cdc.gov',               bias: 'center',       reliability: 4, label: 'CDC' },
+  { domain: 'cdc.gov',               bias: 'center',       reliability: 4, establishment: true, label: 'CDC — official health authority' },
+  { domain: 'who.int',               bias: 'center',       reliability: 4, establishment: true, label: 'WHO — official global health authority' },
   { domain: 'nih.gov',               bias: 'center',       reliability: 5, label: 'NIH' },
   { domain: 'fda.gov',               bias: 'center',       reliability: 4, label: 'FDA' },
 
-  // ── TECH / BUSINESS ───────────────────────────────────────────────────────
-  { domain: 'techcrunch.com',        bias: 'center',       reliability: 4, label: 'Tech news' },
+  // ── TECH / BUSINESS / FINANCE ─────────────────────────────────────────────
+  { domain: 'techcrunch.com',        bias: 'center',       reliability: 4, label: 'Tech/startups' },
   { domain: 'wired.com',             bias: 'left-center',  reliability: 4, label: 'Tech/culture' },
   { domain: 'arstechnica.com',       bias: 'center',       reliability: 4, label: 'Tech/science' },
   { domain: 'theverge.com',          bias: 'left-center',  reliability: 3, label: 'Tech news' },
   { domain: 'forbes.com',            bias: 'center',       reliability: 3, label: 'Business' },
   { domain: 'fortune.com',           bias: 'center',       reliability: 3, label: 'Business' },
+  { domain: 'ft.com',                bias: 'center',       reliability: 4, label: 'Financial Times' },
+  { domain: 'crunchbase.com',        bias: 'center',       reliability: 4, label: 'Startup/funding database' },
+  { domain: 'cnbc.com',              bias: 'center',       reliability: 3, label: 'Business/markets' },
+  { domain: 'investopedia.com',      bias: 'center',       reliability: 3, label: 'Finance reference' },
+  { domain: 'espn.com',              bias: 'center',       reliability: 4, label: 'Sports' },
 ]
 
 export function getSourceProfile(url: string): SourceProfile | null {
@@ -147,4 +155,89 @@ export const POLITICAL_DOMAINS = {
   center: ['reuters.com', 'apnews.com', 'thehill.com', 'breakingpoints.com', 'factcheck.org'],
   right:  ['foxnews.com', 'wsj.com', 'nationalreview.com', 'washingtonexaminer.com', 'thefederalist.com'],
   alt:    ['thegrayzone.com', 'jimmydoreshow.com', 'valuetainment.com', 'greenwald.substack.com', 'vigilantfox.news'],
+}
+
+// ── ESTABLISHMENT lens ──────────────────────────────────────────────────────
+// The institutional/consensus narrative — gatekeepers that "oversee and share" the official
+// line: Wikipedia, the major fact-checkers. Surfaced as ONE perspective to CONTRAST against
+// independent/alt sources, NEVER as automatic ground truth (the COVID/Wikipedia example).
+export const ESTABLISHMENT_DOMAINS = [
+  'en.wikipedia.org', 'snopes.com', 'politifact.com', 'factcheck.org', 'fullfact.org',
+]
+
+// Universal high-trust baseline appended to every category's Center pool.
+// (Wikipedia deliberately excluded — it's the Establishment lens, and was over-dominating Center.)
+const CENTER_BASELINE = ['reuters.com', 'apnews.com']
+
+// Per-category authoritative/Center source pools — the core of "every topic, never assume
+// politics." `general` is the safe catch-all for random/unexpected topics.
+// NOTE: Wikipedia is intentionally NOT in these Center pools — it lives in the Establishment lens.
+// Center should return wire services / category news, not the encyclopedia (which was dominating).
+export const CATEGORY_CENTER_DOMAINS: Record<TopicCategory, string[]> = {
+  political:      POLITICAL_DOMAINS.center,
+  business:       ['bloomberg.com', 'cnbc.com', 'fortune.com', 'crunchbase.com', 'reuters.com', 'sec.gov'],
+  finance:        ['bloomberg.com', 'cnbc.com', 'sec.gov', 'cbo.gov', 'bls.gov', 'investopedia.com', 'reuters.com'],
+  tech:           ['techcrunch.com', 'arstechnica.com', 'theverge.com', 'reuters.com'],
+  science:        ['nature.com', 'sciencedirect.com', 'pubmed.ncbi.nlm.nih.gov', 'arxiv.org'],
+  health:         ['nih.gov', 'pubmed.ncbi.nlm.nih.gov', 'cdc.gov', 'fda.gov', 'who.int'],
+  history:        ['britannica.com', 'history.com', 'reuters.com'],
+  sports:         ['espn.com', 'apnews.com', 'reuters.com'],
+  entertainment:  ['apnews.com', 'reuters.com', 'variety.com'],
+  travel:         ['britannica.com', 'reuters.com', 'apnews.com'],
+  food:           ['reuters.com', 'apnews.com'],
+  environment:    ['nature.com', 'reuters.com', 'apnews.com'],
+  world:          ['reuters.com', 'apnews.com', 'bbc.com'],
+  general:        ['reuters.com', 'apnews.com', 'britannica.com'],
+}
+
+// Per-category LEFT pools. Default to the general SPECTRUM left set for categories without a
+// specific lean split. Every topic gets a left perspective now ("there's always a perspective").
+const CATEGORY_LEFT_DOMAINS: Partial<Record<TopicCategory, string[]>> = {
+  business:      ['nytimes.com', 'theguardian.com', 'vox.com', 'cnn.com'],
+  finance:       ['nytimes.com', 'theguardian.com', 'vox.com'],
+  tech:          ['theverge.com', 'wired.com', 'theguardian.com', 'vox.com'],
+  science:       ['theguardian.com', 'vox.com', 'nytimes.com'],
+  health:        ['theguardian.com', 'vox.com', 'nytimes.com'],
+  environment:   ['theguardian.com', 'vox.com', 'nytimes.com', 'motherjones.com'],
+  entertainment: ['theguardian.com', 'nytimes.com', 'vox.com'],
+  world:         POLITICAL_DOMAINS.left,
+  political:     POLITICAL_DOMAINS.left,
+}
+
+// Per-category RIGHT pools. Default to the general SPECTRUM right set otherwise.
+const CATEGORY_RIGHT_DOMAINS: Partial<Record<TopicCategory, string[]>> = {
+  business:      ['wsj.com', 'forbes.com', 'nypost.com', 'washingtonexaminer.com'],
+  finance:       ['wsj.com', 'forbes.com', 'nypost.com'],
+  tech:          ['foxnews.com', 'nypost.com', 'dailywire.com', 'washingtonexaminer.com'],
+  science:       ['nationalreview.com', 'washingtonexaminer.com', 'foxnews.com'],
+  health:        ['foxnews.com', 'nypost.com', 'washingtonexaminer.com'],
+  environment:   ['wsj.com', 'nationalreview.com', 'foxnews.com'],
+  entertainment: ['nypost.com', 'foxnews.com', 'dailywire.com'],
+  world:         POLITICAL_DOMAINS.right,
+  political:     POLITICAL_DOMAINS.right,
+}
+
+// Categories with a meaningful partisan split — used ONLY for merging learned political domains,
+// NOT for hiding lenses. Every category now surfaces Left/Right perspectives (see lensDomains).
+const PARTISAN_CATEGORIES: TopicCategory[] = ['political', 'world']
+export function hasPartisanFraming(category?: TopicCategory): boolean {
+  return !!category && PARTISAN_CATEGORIES.includes(category)
+}
+
+// The domain set for a given (category, lens). Left/Right now resolve for EVERY category (category
+// pool when defined, else the general spectrum set) so all topics get all sides. The route loosens
+// to an unrestricted search when a non-empty set still returns nothing.
+export function lensDomains(category: TopicCategory | undefined, lens: SpectrumLens): string[] {
+  const cat = category ?? 'general'
+  switch (lens) {
+    case 'establishment': {
+      const officials = cat === 'health' ? ['cdc.gov', 'who.int', 'nih.gov', 'fda.gov'] : []
+      return [...new Set([...ESTABLISHMENT_DOMAINS, ...officials])]
+    }
+    case 'center': return [...new Set([...(CATEGORY_CENTER_DOMAINS[cat] ?? CATEGORY_CENTER_DOMAINS.general), ...CENTER_BASELINE])]
+    case 'alt':    return hasPartisanFraming(cat) ? POLITICAL_DOMAINS.alt : SPECTRUM_DOMAINS.alt
+    case 'left':   return CATEGORY_LEFT_DOMAINS[cat]  ?? SPECTRUM_DOMAINS.left
+    case 'right':  return CATEGORY_RIGHT_DOMAINS[cat] ?? SPECTRUM_DOMAINS.right
+    default:       return []
+  }
 }

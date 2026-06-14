@@ -13,10 +13,12 @@ const BIAS_COLORS: Record<string, string> = {
 }
 
 const LENS_LABELS: Record<string, string> = {
-  center: 'Center',
-  left:   'Left',
-  right:  'Right',
-  alt:    'Alt',
+  center:        'Center',
+  left:          'Left',
+  right:         'Right',
+  alt:           'Independent',
+  establishment: 'Establishment',
+  grok:          'X Community',
 }
 
 interface Props {

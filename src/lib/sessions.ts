@@ -26,7 +26,10 @@ export async function getSessionByVideo(videoId: string, userId: string): Promis
   }
 }
 
-// Accepts partial session for merge-style updates (only sessionId required)
+// Accepts partial session for merge-style updates (only sessionId required).
+// NOTE: the client now sends the COMPLETE (untruncated) card list, so replacing `cards` is safe
+// and honors intentional archive/dismiss. The accidental "restore erased on new fact-check" bug
+// was caused by the client-side .slice(0,50) cap (removed in page.tsx), not this write.
 export async function upsertSession(session: Partial<CpSession> & { sessionId: string }): Promise<void> {
   try {
     await getDb().collection(SESSIONS).doc(session.sessionId).set(

@@ -10,7 +10,7 @@ import { PredictiveBanner }   from '@/components/PredictiveBanner'
 import { PermissionsGuide }   from '@/components/PermissionsGuide'
 import { LoginModal }         from '@/components/LoginModal'
 import { SettingsPanel }      from '@/components/SettingsPanel'
-import { LogIn, LogOut, User, History as HistoryIcon, Radio, Settings as SettingsIcon, Mic, MonitorPlay, Square, ChevronDown } from 'lucide-react'
+import { LogIn, LogOut, User, History as HistoryIcon, Radio, Settings as SettingsIcon, Mic, MonitorPlay, Square, ChevronDown, HelpCircle } from 'lucide-react'
 import { SourcesPanel }       from '@/components/SourcesPanel'
 import { VideoPlayer }        from '@/components/VideoPlayer'
 import { VerifyTooltip }      from '@/components/VerifyTooltip'
@@ -21,9 +21,18 @@ import { useYouTubeSync }     from '@/hooks/useYouTubeSync'
 import { extractVideoId }     from '@/lib/youtube-transcript'
 import type { XPostData }     from '@/app/api/x-post/route'
 import { XPostEmbed }         from '@/components/XPostEmbed'
-import type { CounterpointCard, LLMSettings, TranscriptLine, Verdict } from '@/types'
+import type { CounterpointCard, LLMSettings, TopicCategory, TranscriptLine, Verdict } from '@/types'
 
 const PLAYER_ID = 'yt-player'
+
+// lucide-react dropped its brand icons, so use an inline GitHub mark for the footer link
+function GithubMark({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  )
+}
 
 // Match a tab-audio transcript chunk against the pre-loaded CC transcript.
 // Returns the CC offsetMs if overlap is strong enough, otherwise null.
@@ -157,11 +166,15 @@ export default function Home() {
   const [userEmail,          setUserEmail]          = useState<string | null>(null)
   const [showLoginModal,     setShowLoginModal]     = useState(false)
   const [showUserMenu,       setShowUserMenu]       = useState(false)
-  // Mobile tab switcher
-  const [mobileTab,          setMobileTab]          = useState<'transcript' | 'checks'>('transcript')
+  // Mobile tab switcher — one flat 3-tab bar: transcript | your checks | auto feed
+  const [mobileTab,          setMobileTab]          = useState<'transcript' | 'main' | 'auto'>('transcript')
+  // True at md+ — gates the desktop drag-split inline style so mobile panes fill height instead
+  const [isDesktop,          setIsDesktop]          = useState(false)
   // Resizable / expandable panels
   const [splitRatio,         setSplitRatio]         = useState(0.5)
   const [expandedPanel,      setExpandedPanel]      = useState<'transcript' | 'checks' | null>(null)
+  // Right pane: 'main' = your manual checks + the single latest auto-check; 'auto' = the full auto feed
+  const [rightTab,           setRightTab]           = useState<'main' | 'auto'>('main')
   // Permissions guide modal
   const [showPermissionsGuide, setShowPermissionsGuide] = useState(false)
 
@@ -182,6 +195,7 @@ export default function Home() {
   const videoVersionRef   = useRef(0)
   // Memory for the claim gatekeeper — recently-checked claim texts, to avoid re-flagging duplicates
   const recentClaimsRef   = useRef<string[]>([])
+  const cardsRef          = useRef<CounterpointCard[]>([])  // live mirror of `cards` for synchronous dedup in processClaim
 
   const transcript = useTranscript()
   const { capture: captureFrame } = useFrameCapture(videoRef)
@@ -258,6 +272,15 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handler)
   }, [expandedPanel])
 
+  // Track desktop breakpoint so the drag-split style applies only at md+ (mobile panes fill height)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const update = () => setIsDesktop(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
   const handleAudioChunk = useCallback(async (blob: Blob) => {
     // Anchor: if a video is loaded in the embedded player use its time; otherwise wall-clock
     // elapsed since capture began (snapshot before the async fetch).
@@ -298,10 +321,23 @@ export default function Home() {
     claimId: string,
     topic: string,
     transcriptOffsetMs: number = 0,
-    opts: { noCache?: boolean } = {},
+    opts: { noCache?: boolean; category?: TopicCategory; origin?: 'auto' | 'manual' } = {},
   ) => {
     const myVersion = videoVersionRef.current
+    const category = opts.category ?? 'general'
     setCheckingClaim(claimText)
+
+    // Resolve to an existing card: same id, OR a re-detection of the same claim (fresh id, same
+    // text). Reusing the existing id means a re-check UPDATES one card instead of appending a
+    // duplicate and shoving older (restored) cards out. "No duplicates, but you can add."
+    const existingCard = cardsRef.current.find(c => c.id === claimId || isDuplicateClaim(claimText, [c.claim]))
+    const cardId = existingCard?.id ?? claimId
+    // Manual wins: a sentence the user explicitly checked is 'manual' even if auto found it first.
+    // Auto re-checking an existing manual card never demotes it back to 'auto'.
+    const origin: 'auto' | 'manual' =
+      opts.origin === 'manual' || existingCard?.origin === 'manual' ? 'manual' : (opts.origin ?? 'auto')
+    const emptySpectrum = () => ({ left: [], center: [], right: [], alt: [], grok: [], establishment: [] })
+
     const frame = captureFrame()
     let visionSnapshot = null
     if (frame) {
@@ -313,31 +349,32 @@ export default function Home() {
       visionSnapshot = await vr.json()
     }
 
-    // Show a "checking" state. On a re-run the card already exists → update it in place;
-    // otherwise add a fresh placeholder at the top.
+    // Show a "checking" state. Existing card → update it in place; otherwise prepend a fresh
+    // placeholder. Never truncate the list — restored + finished cards must never be erased.
     setCards(prev => {
-      if (prev.some(c => c.id === claimId)) {
-        return prev.map(c => c.id === claimId
-          ? { ...c, verdictSummary: opts.noCache ? 'Re-checking sources…' : 'Checking…', spectrum: { left: [], center: [], right: [], alt: [], grok: [] } }
+      if (prev.some(c => c.id === cardId)) {
+        // Promote origin immediately (manual wins) so a manual re-check jumps to the Main tab now.
+        return prev.map(c => c.id === cardId
+          ? { ...c, origin, verdictSummary: opts.noCache ? 'Re-checking sources…' : 'Checking…', spectrum: emptySpectrum() }
           : c)
       }
       const placeholder: CounterpointCard = {
-        id: claimId, claimId, claim: claimText,
-        verdict: 'UNVERIFIED', verdictSummary: 'Checking…',
-        spectrum: { left: [], center: [], right: [], alt: [], grok: [] },
+        id: cardId, claimId: cardId, claim: claimText,
+        verdict: 'UNVERIFIED', verdictSummary: 'Checking…', category, origin,
+        spectrum: emptySpectrum(),
         createdAt: Date.now(), transcriptOffsetMs, visionSnapshot, voiceSnapshot: null,
       }
-      return [placeholder, ...prev].slice(0, 20)
+      return [placeholder, ...prev]
     })
 
     const evRes = await fetch('/api/evidence', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ claim: claimText, topic, claimId, settings, noCache: opts.noCache === true }),
+      body: JSON.stringify({ claim: claimText, topic, category, claimId: cardId, settings, noCache: opts.noCache === true }),
     })
 
     if (evRes.status === 429) {
-      setCards(prev => prev.map(c => c.id === claimId ? {
+      setCards(prev => prev.map(c => c.id === cardId ? {
         ...c,
         verdictSummary: '⚠️ Rate limit reached — add your own API key in ⚙ Settings to continue checking claims without limits.',
       } : c))
@@ -349,14 +386,16 @@ export default function Home() {
       if (videoVersionRef.current !== myVersion) return
       setCheckingClaim(null)
       setCards(prev => prev.map(c => {
-        if (c.id !== claimId) return c
+        if (c.id !== cardId) return c
         // Merge: keep already-streamed lens items if the final card's lens came back empty.
-        const keys = ['left', 'center', 'right', 'alt', 'grok'] as const
+        const keys = ['left', 'center', 'right', 'alt', 'grok', 'establishment'] as const
         const mergedSpectrum = { ...card.spectrum }
         for (const k of keys) {
           if (!(mergedSpectrum[k]?.length) && c.spectrum[k]?.length) mergedSpectrum[k] = c.spectrum[k]
         }
-        return { ...card, spectrum: mergedSpectrum }
+        // Manual wins even across a race: if a concurrent manual check already promoted this card,
+        // a late-finishing auto check must not demote it back to the Auto feed.
+        return { ...card, id: cardId, claimId: cardId, origin: c.origin === 'manual' ? 'manual' : origin, spectrum: mergedSpectrum }
       }))
       setLatestVerdict({ verdict: card.verdict, claim: card.claim })
       setClaimVerdicts(prev => new Map(prev).set(card.claimId, card.verdict))
@@ -403,7 +442,7 @@ export default function Home() {
             if (videoVersionRef.current !== myVersion) { reader.cancel(); return }
             if (chunk.type === 'lens' && chunk.key) {
               setCards(prev => prev.map(c =>
-                c.id === claimId
+                c.id === cardId
                   // Don't let a late empty update wipe a lens that already has items (prevents flicker).
                   ? { ...c, spectrum: { ...c.spectrum, [chunk.key!]: (chunk.items?.length ? chunk.items : c.spectrum[chunk.key as keyof typeof c.spectrum] ?? []) } }
                   : c
@@ -469,21 +508,23 @@ export default function Home() {
         }
         if (!bestLine) bestLine = claimLines.at(-1)
         if (bestLine) transcript.markClaim(bestLine.id, claim.id)
-        await processClaim(claim.text, claim.id, claim.topic, bestLine?.offsetMs ?? 0)
+        await processClaim(claim.text, claim.id, claim.topic, bestLine?.offsetMs ?? 0, { category: claim.category, origin: 'auto' })
       }
 
-      // Process with limited concurrency so the FIRST results land in ~10s instead of all ~15
-      // claims contending for rate-limited backends and finishing together ~30s later. A pool of
-      // 3 keeps a steady trickle: each card flips from "checking…" to a verdict as it completes.
+      // FIRST claim alone (no contention → fastest first verdict), THEN the rest 3-at-a-time.
+      // Avoids 15 claims choking the rate-limited backend and all finishing together ~30s later.
       const myVer = videoVersionRef.current
-      const CONCURRENCY = 3
+      if (fresh.length > 0 && videoVersionRef.current === myVer) {
+        await checkOne(fresh[0])
+      }
+      const rest = fresh.slice(1)
       let nextIdx = 0
       const worker = async () => {
-        while (nextIdx < fresh.length && videoVersionRef.current === myVer) {
-          await checkOne(fresh[nextIdx++])
+        while (nextIdx < rest.length && videoVersionRef.current === myVer) {
+          await checkOne(rest[nextIdx++])
         }
       }
-      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, fresh.length) }, worker))
+      await Promise.all(Array.from({ length: Math.min(3, rest.length) }, worker))
     } finally {
       processingRef.current = false
       setIsAnalyzing(false)
@@ -605,7 +646,9 @@ export default function Home() {
 
   // Persist ALL cards to the session whenever they change (debounced). This saves fact-checks
   // immediately and keeps them current as sources are added/re-researched — never static.
+  // Also mirror `cards` into cardsRef synchronously so processClaim can dedup against the live set.
   useEffect(() => {
+    cardsRef.current = cards
     if (!sessionIdRef.current || cards.length === 0) return
     const t = setTimeout(() => {
       fetch('/api/sessions', {
@@ -630,13 +673,17 @@ export default function Home() {
     }, 100)
   }, [seekTo])
 
-  // Any transcript line manually sent to fact-checker — runs independently of auto-analysis
+  // Any transcript line manually sent to fact-checker — runs independently of auto-analysis.
+  // Tagged 'manual' so it surfaces on the Main tab; jump there so the new card is visible at once.
   const handleManualCheck = useCallback(async (text: string, offsetMs: number) => {
     if (!text.trim()) return
+    setRightTab('main')
+    setMobileTab('main')                                    // mobile: reveal the Your Checks pane
+    setExpandedPanel(p => (p === 'transcript' ? null : p))  // desktop: un-expand transcript so the check is visible
     const claimId = Math.random().toString(36).slice(2) + Date.now().toString(36)
     const line = linesRef.current.find(l => l.text.trim() === text.trim())
     if (line) transcript.markClaim(line.id, claimId)
-    await processClaim(text, claimId, 'general', offsetMs)
+    await processClaim(text, claimId, 'general', offsetMs, { origin: 'manual' })
   }, [processClaim, transcript])
 
   // Evidence card timestamp clicked → seek video
@@ -655,6 +702,12 @@ export default function Home() {
     }
     if ((session.cards?.length ?? 0) > 0) {
       setCards(session.cards)
+      // Tell the dedup memory about restored claims so the analyze loop never re-checks them
+      // (which would create duplicates and shove the originals out). This is the key fix.
+      recentClaimsRef.current = [
+        ...recentClaimsRef.current,
+        ...session.cards.map(c => c.claim),
+      ].slice(-60)
       const vc = { true: 0, misleading: 0, false: 0 }
       let score = 0
       const vm = new Map<string, import('@/types').Verdict>()
@@ -683,7 +736,7 @@ export default function Home() {
 
   // Re-run sources for a card — forces a fresh search (bypasses the knowledge-base cache)
   const handleRerunSources = useCallback((card: CounterpointCard) => {
-    processClaim(card.claim, card.id, 'general', card.transcriptOffsetMs ?? 0, { noCache: true })
+    processClaim(card.claim, card.id, 'general', card.transcriptOffsetMs ?? 0, { noCache: true, category: card.category })
   }, [processClaim])
 
   // Evidence card header clicked → seek video + jump to matching transcript line
@@ -890,12 +943,31 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingAutoLoad])
 
+  // Right-pane split: manual checks own the Main tab; auto-checks live on the Auto feed tab.
+  // Cards are prepended newest-first, so autoCards[0] is the freshest auto-check. Cards saved
+  // before this feature have no `origin` → treat as 'auto' (back-compat).
+  const manualCards = cards.filter(c => c.origin === 'manual')
+  const autoCards   = cards.filter(c => (c.origin ?? 'auto') === 'auto')
+  const latestAuto  = autoCards[0] ?? null
+
+  const renderCard = (card: CounterpointCard) => (
+    <EvidenceCard
+      key={card.id}
+      card={card}
+      isActive={activeClaimId === card.claimId}
+      onSeek={handleCardSeek}
+      onActivate={handleCardActivate}
+      onArchive={handleArchiveCard}
+      onRerun={handleRerunSources}
+    />
+  )
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
       {/* Header */}
-      <header className="border-b border-white/8 px-4 py-2 flex items-center gap-3 bg-[#0d0d14]">
+      <header className="border-b border-white/8 px-4 py-1.5 flex items-center gap-3 bg-[#0d0d14]">
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <Image src="/counterpoints.png" alt="CounterPoints" width={144} height={96} priority className="h-20 w-auto" />
+          <Image src="/counterpoints.png" alt="CounterPoints" width={144} height={96} priority className="h-10 sm:h-12 w-auto" />
           <span className="text-[10px] text-indigo-400/60 border border-indigo-500/15 rounded px-1.5 py-0.5 font-mono hidden sm:inline">BETA</span>
         </Link>
 
@@ -1093,12 +1165,12 @@ export default function Home() {
       )}
 
       {/* Predictive banner */}
-      <div className="px-4 pt-2">
+      <div className="px-4 pt-1">
         <PredictiveBanner topic={predictiveTopic} />
       </div>
 
       {/* Main area — video + 2-col layout */}
-      <div className="flex-1 flex flex-col overflow-hidden px-4 pb-4 pt-2 gap-2 min-h-0">
+      <div className="flex-1 flex flex-col overflow-hidden px-4 pb-4 pt-1 gap-2 min-h-0">
         {/* Video row — compact, centered */}
         <div className="shrink-0">
           {xPost ? (
@@ -1137,17 +1209,21 @@ export default function Home() {
           )}
         </div>
 
-        {/* Mobile tab bar — only visible below md breakpoint */}
+        {/* Mobile tab bar — one flat 3-tab bar, only below md breakpoint */}
         <div className="flex md:hidden border-b border-white/8 shrink-0">
-          {(['transcript', 'checks'] as const).map(t => (
+          {([
+            { key: 'transcript', label: '📝 Transcript' },
+            { key: 'main',       label: `✅ Your Checks${manualCards.length > 0 ? ` (${manualCards.length})` : ''}` },
+            { key: 'auto',       label: `⚡ Auto${autoCards.length > 0 ? ` (${autoCards.length})` : ''}` },
+          ] as const).map(({ key, label }) => (
             <button
-              key={t}
-              onClick={() => setMobileTab(t)}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                mobileTab === t ? 'text-white border-b-2 border-indigo-400' : 'text-gray-500'
+              key={key}
+              onClick={() => { setMobileTab(key); if (key !== 'transcript') setRightTab(key) }}
+              className={`flex-1 py-2 text-[13px] font-medium transition-colors whitespace-nowrap ${
+                mobileTab === key ? 'text-white border-b-2 border-indigo-400' : 'text-gray-500'
               }`}
             >
-              {t === 'transcript' ? '📝 Transcript' : `✅ Fact-Checks${cards.length > 0 ? ` (${cards.length})` : ''}`}
+              {label}
             </button>
           ))}
         </div>
@@ -1161,8 +1237,8 @@ export default function Home() {
               expandedPanel === 'checks' ? 'hidden' :
               expandedPanel === 'transcript' ? 'flex flex-1' :
               mobileTab === 'transcript' ? 'flex' : 'hidden md:flex'
-            } flex-col min-h-0 w-full rounded-xl border border-white/8 bg-[#0d0d14] overflow-hidden`}
-            style={expandedPanel ? {} : { flexBasis: `calc(${splitRatio * 100}% - 3px)`, flexGrow: 0, flexShrink: 0 }}
+            } flex-1 flex-col min-h-0 w-full rounded-xl border border-white/8 bg-[#0d0d14] overflow-hidden`}
+            style={isDesktop && !expandedPanel ? { flexBasis: `calc(${splitRatio * 100}% - 3px)`, flexGrow: 0, flexShrink: 0 } : undefined}
           >
             {/* Transcript panel header */}
             <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-white/6">
@@ -1287,36 +1363,52 @@ export default function Home() {
             className={`${
               expandedPanel === 'transcript' ? 'hidden' :
               expandedPanel === 'checks' ? 'flex flex-1' :
-              mobileTab === 'checks' ? 'flex' : 'hidden md:flex'
-            } flex-col gap-3 min-h-0 w-full overflow-y-auto`}
-            style={expandedPanel ? {} : { flexBasis: `calc(${(1 - splitRatio) * 100}% - 3px)`, flexGrow: 0, flexShrink: 0 }}
+              mobileTab !== 'transcript' ? 'flex' : 'hidden md:flex'
+            } flex-1 flex-col min-h-0 w-full rounded-xl border border-white/8 bg-[#0d0d14] overflow-hidden`}
+            style={isDesktop && !expandedPanel ? { flexBasis: `calc(${(1 - splitRatio) * 100}% - 3px)`, flexGrow: 0, flexShrink: 0 } : undefined}
           >
-            {/* Fact-checks header with expand button */}
-            <div className="shrink-0 flex items-center justify-between px-1 pt-0.5">
-              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Fact-Checks</span>
+            {/* Right-pane header = the tab menu (sits ABOVE the gauge), as a segmented control so it
+                clearly reads as tabs. Desktop only — the mobile 3-tab bar drives this on phones. */}
+            <div className="shrink-0 hidden md:flex items-center gap-2 border-b border-white/8 px-3 py-2">
+              {cards.length > 0 ? (
+                <div className="flex items-center gap-1 p-0.5 rounded-lg bg-black/30 border border-white/10">
+                  {([
+                    ['main', `Your Checks${manualCards.length ? ` (${manualCards.length})` : ''}`],
+                    ['auto', `Auto Feed${autoCards.length ? ` (${autoCards.length})` : ''}`],
+                  ] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setRightTab(key)}
+                      className={`px-3 py-1 text-xs font-semibold rounded-md border transition-colors ${
+                        rightTab === key
+                          ? 'bg-indigo-500/25 text-white border-indigo-400/40'
+                          : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Fact-Checks</span>
+              )}
+              <div className="flex-1" />
               <button
                 onClick={() => setExpandedPanel(p => p === 'checks' ? null : 'checks')}
                 title={expandedPanel === 'checks' ? 'Restore split view' : 'Expand (Esc to exit)'}
-                className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-500 hover:text-white hover:border-white/20"
+                className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-500 hover:text-white hover:border-white/20"
               >
                 {expandedPanel === 'checks' ? '⊡' : '⛶'}
               </button>
             </div>
 
-            {/* One-line summary — calm first-impression context */}
-            {cards.length > 0 && (
-              <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px]">
-                <span className="text-gray-300 font-medium">{cards.length} claim{cards.length === 1 ? '' : 's'} checked</span>
-                {verdictCounts.true > 0       && <span className="text-green-400">✓ {verdictCounts.true} verified</span>}
-                {verdictCounts.misleading > 0 && <span className="text-amber-400">⚠ {verdictCounts.misleading} misleading</span>}
-                {verdictCounts.false > 0      && <span className="text-red-400">✕ {verdictCounts.false} false</span>}
-                {checkingClaim && <span className="text-indigo-400/70 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" /> checking…</span>}
-              </div>
-            )}
+            {/* Scrollable body — gauge + banners + cards live here so the tab menu stays pinned */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">
 
-            {/* PantsOnFire — full size */}
+            {/* PantsOnFire — compact single-row meter (counts live inside it, so no separate summary bar) */}
             <div className="shrink-0 rounded-xl border border-white/6 bg-[#0d0d14] overflow-hidden">
               <PantsOnFire
+                compact
                 score={lieScore}
                 verdictCounts={verdictCounts}
                 stressLevel={null}
@@ -1342,22 +1434,53 @@ export default function Home() {
                 <p className="text-xs text-amber-200/70 truncate">{predictiveTopic}</p>
               </div>
             )}
+            {/* Nothing checked yet */}
             {cards.length === 0 && transcriptStatus !== 'idle' && (
               <p className="text-xs text-gray-600 italic text-center py-8">
                 {transcriptStatus === 'ready' || isLive ? 'Monitoring for claims…' : 'Load a video to start fact-checking.'}
               </p>
             )}
-            {cards.map(card => (
-              <EvidenceCard
-                key={card.id}
-                card={card}
-                isActive={activeClaimId === card.claimId}
-                onSeek={handleCardSeek}
-                onActivate={handleCardActivate}
-                onArchive={handleArchiveCard}
-                onRerun={handleRerunSources}
-              />
-            ))}
+
+            {/* MAIN tab — your manual checks, with the single latest auto-check pinned on top */}
+            {rightTab === 'main' && (
+              <>
+                {latestAuto && (
+                  <div className="shrink-0 space-y-1">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] font-semibold text-indigo-400/70 uppercase tracking-wider">⚡ Latest auto-check</span>
+                      {autoCards.length > 1 && (
+                        <button
+                          onClick={() => setRightTab('auto')}
+                          className="text-[10px] text-indigo-400/70 hover:text-indigo-300 transition-colors"
+                        >
+                          See more auto facts ({autoCards.length}) →
+                        </button>
+                      )}
+                    </div>
+                    {renderCard(latestAuto)}
+                  </div>
+                )}
+                {manualCards.length > 0
+                  ? manualCards.map(renderCard)
+                  : cards.length > 0 && (
+                    <p className="text-xs text-gray-600 italic text-center py-6 px-3">
+                      Click any transcript sentence — or highlight text — to fact-check it here.
+                    </p>
+                  )}
+              </>
+            )}
+
+            {/* AUTO tab — the full background feed */}
+            {rightTab === 'auto' && (
+              autoCards.length > 0
+                ? autoCards.map(renderCard)
+                : cards.length > 0 && (
+                  <p className="text-xs text-gray-600 italic text-center py-6 px-3">
+                    No auto-checks yet — they appear here as claims are detected.
+                  </p>
+                )
+            )}
+            </div>{/* /scrollable body */}
           </div>
 
         </div>
@@ -1366,15 +1489,29 @@ export default function Home() {
       <AlertFlash verdict={latestVerdict?.verdict ?? null} claim={latestVerdict?.claim ?? ''} />
 
       {/* Footer */}
-      <footer className="border-t border-white/5 px-4 py-2 flex items-center gap-4 bg-[#0d0d14]">
-        <span className="text-[10px] text-gray-700">© CounterPoints 2026</span>
-        <div className="flex items-center gap-3">
-          <Link href="/"      className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors">Home</Link>
-          <Link href="/about" className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors">About</Link>
-          <button onClick={() => setShowSources(true)} className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors">Sources</button>
-        </div>
+      <footer className="border-t border-white/8 px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 bg-[#0d0d14]">
+        <span className="text-[11px] text-gray-400 font-medium">© CounterPoints 2026</span>
+        <nav className="flex items-center gap-x-4 gap-y-1 flex-wrap">
+          <Link href="/"      className="text-[11px] text-gray-400 hover:text-white transition-colors">Home</Link>
+          <Link href="/about" className="text-[11px] text-gray-400 hover:text-white transition-colors">About</Link>
+          <button
+            onClick={() => setShowPermissionsGuide(true)}
+            className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-white transition-colors"
+          >
+            <HelpCircle size={13} /> How it works
+          </button>
+          <button onClick={() => setShowSources(true)} className="text-[11px] text-gray-400 hover:text-white transition-colors">Sources</button>
+          <a
+            href="https://github.com/skylacking04/counterpoints"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-white transition-colors"
+          >
+            <GithubMark size={13} /> GitHub
+          </a>
+        </nav>
         <div className="flex-1" />
-        <span className="text-[10px] text-gray-700">Watch anything. See every side.</span>
+        <span className="text-[11px] text-gray-500 hidden sm:inline">Watch anything. See every side.</span>
       </footer>
 
       {showSources && <SourcesPanel onClose={() => setShowSources(false)} />}

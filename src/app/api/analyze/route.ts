@@ -1,9 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callLLM } from '@/lib/llm'
-import type { Claim, LLMSettings } from '@/types'
+import type { Claim, LLMSettings, TopicCategory } from '@/types'
 
 function uuid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
+const CATEGORIES: TopicCategory[] = [
+  'political', 'business', 'finance', 'tech', 'science', 'health', 'history',
+  'sports', 'entertainment', 'travel', 'food', 'environment', 'world', 'general',
+]
+
+// Cheap keyword fallback when the LLM omits/garbles the category. Never assumes politics —
+// an unmatched topic resolves to 'general' (the safe catch-all).
+function classifyCategory(topic: string, text: string): TopicCategory {
+  const s = `${topic} ${text}`.toLowerCase()
+  const has = (re: RegExp) => re.test(s)
+  if (has(/politi|govern|elect|congress|senate|president|\bpolicy\b|democrat|republican|legislat|immigration|\btax\b|war\b|military|foreign policy/)) return 'political'
+  if (has(/startup|acquisi|merger|ipo|venture|funding round|\bceo\b|\bvaluation\b|company|business|\bbrand\b/)) return 'business'
+  if (has(/stock|market|invest|\bbond\b|interest rate|inflation|\bgdp\b|earnings|crypto|finance|fed\b|nasdaq|portfolio/)) return 'finance'
+  if (has(/\bai\b|software|app\b|chip|semiconductor|algorithm|\bcode\b|gadget|smartphone|cyber|tech\b|platform|silicon valley/)) return 'tech'
+  if (has(/physics|chemis|biolog|astronom|space\b|nasa|research study|experiment|quantum|genom|particle|climate science/)) return 'science'
+  if (has(/health|disease|vaccine|virus|medic|hospital|drug\b|fda|cdc|\bcovid\b|cancer|nutrition|mental health/)) return 'health'
+  if (has(/histor|ancient|\bwar of\b|century|empire|dynasty|\b19\d\d\b|\b18\d\d\b|medieval/)) return 'history'
+  if (has(/\bnfl\b|\bnba\b|\bmlb\b|soccer|football|basketball|baseball|olympic|championship|athlete|\bteam\b.*\bgame\b/)) return 'sports'
+  if (has(/movie|film\b|\bactor\b|music|album|celebrity|hollywood|tv show|streaming|box office|grammy|oscar/)) return 'entertainment'
+  if (has(/travel|tourist|flight|airline|hotel|destination|vacation|passport|cruise/)) return 'travel'
+  if (has(/recipe|cuisine|restaurant|\bchef\b|\bfood\b|cooking|ingredient|\bdiet\b/)) return 'food'
+  if (has(/climate|environment|emission|carbon|pollution|wildlife|ecosystem|renewable|biodiversity/)) return 'environment'
+  if (has(/\bun\b|nato|treaty|\bborder\b|geopolit|international|global|foreign|nation|country/)) return 'world'
+  return 'general'
 }
 
 export async function POST(req: NextRequest) {
@@ -48,6 +74,7 @@ Return JSON ONLY (no markdown fences). Array, empty if nothing checkable:
 [{
   "text": "the claim with ALL pronouns/vague references resolved from context — replace 'he/she/they/this guy/it/that' with the actual name, country, policy, or subject. Never leave an unresolved referent.",
   "topic": "brief topic label (2-4 words)",
+  "category": "one of: political, business, finance, tech, science, health, history, sports, entertainment, travel, food, environment, world, general — pick the best fit; use 'general' if unsure. Do NOT default to political.",
   "confidence": 0.0-1.0
 }]
 
@@ -60,7 +87,7 @@ Include only statements with confidence >= 0.6.`
     ], settings)
 
     const clean = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-    const parsed = JSON.parse(clean) as Array<{ text: string; topic: string; confidence: number }>
+    const parsed = JSON.parse(clean) as Array<{ text: string; topic: string; category?: string; confidence: number }>
 
     // Enforce selectivity: confidence floor + keep only the strongest few per scan, so the feed
     // isn't flooded with trivial atomized claims.
@@ -68,13 +95,20 @@ Include only statements with confidence >= 0.6.`
       .filter(c => c.text?.trim() && (c.confidence ?? 0) >= 0.6)
       .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
       .slice(0, 4)
-      .map(c => ({
-        id: uuid(),
-        text: c.text,
-        topic: c.topic,
-        confidence: c.confidence,
-        transcriptOffsetMs,
-      }))
+      .map(c => {
+        // Trust the LLM's category only if it's in the allow-list; otherwise classify by keyword.
+        const category = CATEGORIES.includes(c.category as TopicCategory)
+          ? (c.category as TopicCategory)
+          : classifyCategory(c.topic ?? '', c.text)
+        return {
+          id: uuid(),
+          text: c.text,
+          topic: c.topic,
+          category,
+          confidence: c.confidence,
+          transcriptOffsetMs,
+        }
+      })
 
     return NextResponse.json({ claims })
   } catch (err) {

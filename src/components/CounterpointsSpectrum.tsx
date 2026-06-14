@@ -11,12 +11,21 @@ interface Props {
 
 type TabKey = SpectrumLens
 
+// Full tab catalogue, in display order. The visible set is chosen per topic category:
+// Left/Right only appear for political/world claims — for business/science/travel/etc. they're
+// noise, so they're hidden and the lens stays calm. See `tabsForCard`.
 const TABS: { key: TabKey; label: string; activeClass: string; inactiveClass: string; countClass: string }[] = [
   {
     key: 'grok',   label: '𝕏 Community',
     activeClass:   'bg-sky-500/20 border-sky-400/50 text-sky-200 font-semibold',
     inactiveClass: 'border-sky-500/15 text-sky-400/70 hover:text-sky-300 hover:border-sky-400/30',
     countClass:    'text-sky-500',
+  },
+  {
+    key: 'establishment', label: '🏛 Establishment',
+    activeClass:   'bg-violet-500/20 border-violet-400/50 text-violet-200 font-semibold',
+    inactiveClass: 'border-violet-500/15 text-violet-400/70 hover:text-violet-300 hover:border-violet-400/30',
+    countClass:    'text-violet-500',
   },
   {
     key: 'center', label: 'Center',
@@ -37,7 +46,7 @@ const TABS: { key: TabKey; label: string; activeClass: string; inactiveClass: st
     countClass:    'text-red-500',
   },
   {
-    key: 'alt',    label: 'Alt / Honest',
+    key: 'alt',    label: 'Independent',
     activeClass:   'bg-amber-500/20 border-amber-400/50 text-amber-200 font-semibold',
     inactiveClass: 'border-amber-500/15 text-amber-400/70 hover:text-amber-300 hover:border-amber-400/30',
     countClass:    'text-amber-500',
@@ -45,10 +54,27 @@ const TABS: { key: TabKey; label: string; activeClass: string; inactiveClass: st
 ]
 
 const LENS_COLOR: Partial<Record<TabKey, string>> = {
-  left:   'border-l-2 border-blue-500/40 pl-2',
-  right:  'border-l-2 border-red-500/40 pl-2',
-  center: 'border-l-2 border-gray-500/40 pl-2',
-  alt:    'border-l-2 border-yellow-500/40 pl-2',
+  left:          'border-l-2 border-blue-500/40 pl-2',
+  right:         'border-l-2 border-red-500/40 pl-2',
+  center:        'border-l-2 border-gray-500/40 pl-2',
+  alt:           'border-l-2 border-yellow-500/40 pl-2',
+  establishment: 'border-l-2 border-violet-500/40 pl-2',
+}
+
+// Topic-adaptive tab list. Always: X Community, Establishment, Center, Independent. Left/Right
+// only for partisan topics. Empty lenses are hidden to keep the card scannable; if everything is
+// empty we still show the base set so the user sees the "no sources" state rather than a blank row.
+function tabsForCard(card: CounterpointCard) {
+  // Every topic now gets the full spectrum — there's a left/right framing on tech, business, taxes,
+  // not just politics. Left/Right tabs show for all categories (empty ones still get hidden below).
+  const baseKeys: TabKey[] = ['grok', 'establishment', 'center', 'left', 'right', 'alt']
+  // Also surface any lens that actually returned sources — covers restored older cards (no
+  // category) whose Left/Right lenses are populated, so nothing already gathered gets hidden.
+  const populatedExtra = TABS.map(t => t.key).filter(k => (card.spectrum[k]?.length ?? 0) > 0)
+  const keys = new Set<TabKey>([...baseKeys, ...populatedExtra])
+  const base = TABS.filter(t => keys.has(t.key))
+  const populated = base.filter(t => (card.spectrum[t.key]?.length ?? 0) > 0)
+  return populated.length ? populated : base
 }
 
 // Extract a short readable outlet name from a URL
@@ -68,6 +94,11 @@ function outletName(url: string, fallback?: string): string {
     'nature.com': 'Nature', 'ncbi.nlm.nih.gov': 'PubMed', 'pubmed.ncbi.nlm.nih.gov': 'PubMed',
     'techcrunch.com': 'TechCrunch', 'wired.com': 'Wired', 'ars technica': 'Ars Technica',
     'arstechnica.com': 'Ars Technica', 'theverge.com': 'The Verge',
+    'en.wikipedia.org': 'Wikipedia', 'wikipedia.org': 'Wikipedia', 'britannica.com': 'Britannica',
+    'history.com': 'History', 'bbc.com': 'BBC', 'bbc.co.uk': 'BBC', 'who.int': 'WHO', 'cdc.gov': 'CDC',
+    'bloomberg.com': 'Bloomberg', 'ft.com': 'Financial Times', 'cnbc.com': 'CNBC',
+    'forbes.com': 'Forbes', 'fortune.com': 'Fortune', 'crunchbase.com': 'Crunchbase',
+    'investopedia.com': 'Investopedia', 'espn.com': 'ESPN',
   }
   try {
     const h = new URL(url).hostname.replace('www.', '')
@@ -215,15 +246,19 @@ function formatTime(sec: number) {
 export function CounterpointsSpectrum({ card }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>('grok')
 
-  const items = card.spectrum[activeTab] ?? []
+  // Topic-adaptive: which tabs to show, and keep `active` valid as lenses stream in / categories
+  // differ (the stored activeTab may not be in the visible set).
+  const visibleTabs = tabsForCard(card)
+  const active: TabKey = visibleTabs.some(t => t.key === activeTab) ? activeTab : (visibleTabs[0]?.key ?? 'center')
+  const items = card.spectrum[active] ?? []
 
   return (
     <div className="space-y-3">
       {/* Tabs */}
       <div className="flex gap-1 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.15) transparent' }}>
-        {TABS.map(tab => {
+        {visibleTabs.map(tab => {
           const count = card.spectrum[tab.key]?.length ?? 0
-          const isActive = activeTab === tab.key
+          const isActive = active === tab.key
           return (
             <button
               key={tab.key}
@@ -242,14 +277,18 @@ export function CounterpointsSpectrum({ card }: Props) {
       </div>
 
       {items.length === 0 ? (
-        <p className="text-xs text-gray-600 italic px-1">No sources found for this lens.</p>
+        <p className="text-xs text-gray-600 italic px-1">
+          {active === 'establishment'
+            ? 'No institutional/consensus source found for this claim.'
+            : 'No sources found for this lens.'}
+        </p>
       ) : (
         <div className="space-y-2">
           {items.map((item, i) => (
             <SpectrumItemRow
               key={`${item.url || item.source || 'src'}-${i}`}
               item={item}
-              isXSource={activeTab === 'grok' && (item.url.includes('x.com/') || item.url.includes('twitter.com/'))}
+              isXSource={active === 'grok' && (item.url.includes('x.com/') || item.url.includes('twitter.com/'))}
             />
           ))}
         </div>

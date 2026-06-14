@@ -1,6 +1,14 @@
-export type SpectrumLens = 'left' | 'center' | 'right' | 'alt' | 'grok'
+export type SpectrumLens = 'left' | 'center' | 'right' | 'alt' | 'grok' | 'establishment'
 
 export type Verdict = 'TRUE' | 'MISLEADING' | 'FALSE' | 'UNVERIFIED'
+
+// Open-ended topic category. `general` is the first-class catch-all for random/unexpected
+// topics — it must NEVER fall back to political framing. Drives per-category source domains
+// (source-db.ts) and the topic-adaptive lens UI.
+export type TopicCategory =
+  | 'political' | 'business' | 'finance' | 'tech' | 'science' | 'health'
+  | 'history' | 'sports' | 'entertainment' | 'travel' | 'food' | 'environment'
+  | 'world' | 'general'
 
 export type StressLevel = 'calm' | 'elevated' | 'high'
 
@@ -116,6 +124,11 @@ export interface CounterpointCard {
   verdict: Verdict
   verdictSummary: string
   middleGround?: string   // factual middle ground reconciling left vs right framing
+  // The opposing/contextualizing fact — the namesake "counterpoint". e.g. claim "the rich should
+  // pay more" → { question: "What share do the top 1% pay?", fact: "~40% of federal income tax" }
+  counterpoint?: { question: string; fact: string; sourceName?: string; sourceUrl?: string }
+  category?: TopicCategory // topic class driving the per-category sources + adaptive lens UI
+  origin?: 'auto' | 'manual' // 'auto' = background scan; 'manual' = user clicked/highlighted. Drives the Main-vs-Auto-feed split. Undefined → treat as 'auto' (back-compat for older sessions).
   voiceSnapshot?: VoiceSnapshot | null
   visionSnapshot?: VisionSnapshot | null
   spectrum: Record<SpectrumLens, SpectrumItem[]>
@@ -129,6 +142,7 @@ export interface Claim {
   id: string
   text: string
   topic: string
+  category?: TopicCategory   // open-ended topic class (analyze route); defaults to 'general'
   confidence: number
   transcriptOffsetMs: number
 }
@@ -163,4 +177,5 @@ export interface SourceProfile {
   reliability: number    // 1-5
   allSidesRating?: string
   label?: string
+  establishment?: boolean  // institutional/consensus narrative source (Wikipedia, official fact-checkers, CDC/WHO)
 }

@@ -37,6 +37,7 @@ yarn-error.log*
 coverage/
 .idea/
 .vscode/
+*.code-workspace
 *.log
 
 # ── Local data / temp ────────────────────────────────────────────────────────

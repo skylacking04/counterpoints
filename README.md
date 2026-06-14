@@ -2,8 +2,13 @@
 
 **Real-time, non-partisan fact-checking sidebar for podcasts & YouTube shows.**
 Paste a URL (or capture live audio) → see a rolling transcript, claims auto-flagged, and each
-claim checked across **Left / Center / Right / Alt media + X Community Notes**, then reconciled into
-a verdict with the *actual facts* in the middle.
+claim checked across **𝕏 Community Notes · Establishment · Center · Left · Right · Alt media**,
+then reconciled into a verdict with the *actual facts* in the middle — plus a **Counterpoint**: the
+single opposing fact that challenges the claim (claim *"the rich should pay more"* → *"the top 1%
+already pay ~40% of federal income tax"*, sourced).
+
+Every topic gets every perspective — not just politics. Tech, business, taxes, science all have
+sides, so all sides are shown. A self-review pass audits each verdict before it's displayed.
 
 Built for the [This Week in Startups $5K "Fact Checker for Podcasts" bounty](https://launch1.notion.site/5K-Bounty-Create-a-Fact-Checker-App-for-Podcasts).
 
@@ -20,12 +25,13 @@ Built for the [This Week in Startups $5K "Fact Checker for Podcasts" bounty](htt
 
 | Bounty requirement | How CounterPoints does it |
 |---|---|
-| **Real-time** — listen live, feedback in a sidebar | Tab/mic audio captured in-browser, transcribed every few seconds (Whisper via Groq); fact-check cards stream into the side panel live. |
-| **Fact-checker** — flag claims, give corrections + background | Each claim checked across 5 perspectives, reconciled into TRUE / MISLEADING / FALSE / UNVERIFIED with a one-line "the actual facts" middle-ground + cited sources. |
+| **Real-time** — listen live, feedback in a sidebar | Tab/mic audio captured in-browser, transcribed every few seconds (Whisper via Groq); fact-check cards stream into the side panel live. Dual transcript tabs — **Live Audio** (capture) and **CC** (loaded captions) — both transcribe in the background. |
+| **Fact-checker** — flag claims, give corrections + background | A memory-aware gatekeeper LLM reviews every sentence ("should this be checked?"), then each claim is checked across 6 perspectives, reconciled into TRUE / MISLEADING / FALSE / UNVERIFIED with a one-line "the actual facts" middle-ground, a **Counterpoint** (the opposing fact), and cited sources. A self-review pass then audits the verdict (catches absence-as-contradiction and intent-vs-completed errors). |
 | **Real-time transcript** linked to commentary | Rolling transcript with each checked claim highlighted and click-linked to its fact-check card; clicking a card jumps the video + transcript to that moment. |
 
 Plus: passwordless email login + history, a cross-user knowledge-base cache (repeat claims are
-instant **and free**), and it scales to zero on Cloud Run.
+instant **and free**), an isolated **`/sync-test`** transcript-QA page (compare captions vs Whisper
+with a live drift readout), and it scales to zero on Cloud Run.
 
 ---
 
@@ -34,12 +40,14 @@ instant **and free**), and it scales to zero on Cloud Run.
 ```
 URL / live audio
    │
-   ├─ Capture   InnerTube captions → yt-dlp (proxy) → AI transcription fallback   (cached 7 days)
-   ├─ Detect    Gemini scans the rolling transcript for factual claims every few seconds
-   ├─ Research  5 lenses in parallel: Left/Center/Right/Alt (Tavily + Gemini grounding + Jina)
-   │            and X Community Notes (xAI Grok). A batched LLM gate drops off-topic results.
-   ├─ Reconcile Evidence labeled by side → verdict model finds the factual middle ground
-   └─ Learn     Claim + verdict embedded & stored → similar claims answer instantly next time
+   ├─ Capture     InnerTube captions  ·  tab/mic audio → Whisper (Groq)  ·  yt-dlp+proxy fallback   (cached)
+   ├─ Gatekeeper  Gemini reviews every sentence: "is this a verifiable claim worth checking?" (memory-aware, deduped)
+   ├─ Research    6 lenses in parallel — 𝕏 Community (xAI Grok) · Establishment · Center · Left · Right · Alt
+   │              (Tavily + Gemini grounding + Jina), per-topic source pools so every subject gets every side
+   ├─ Counterpoint  Derive the decisive opposing question → grounded search → the answering fact + source
+   ├─ Reconcile   Evidence labeled by side → verdict model finds the factual middle ground
+   ├─ Self-review Audit the verdict vs the evidence; only soften overreach (absence ≠ contradiction)
+   └─ Learn       Claim + verdict embedded & stored → similar claims answer instantly next time
 ```
 
 **Tech stack:** Next.js 15 (App Router) · TypeScript · Tailwind · Firestore · Google Cloud Run ·

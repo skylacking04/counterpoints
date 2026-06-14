@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const evidence  = [notesText, webText].filter(Boolean).join('\n\n')
 
   const verdictRaw = await callLLM([
-    { role: 'system', content: 'Respond with JSON only: { "verdict": "TRUE"|"MISLEADING"|"FALSE"|"UNVERIFIED", "summary": "2-3 sentences", "confidence": "high"|"medium"|"low" }' },
+    { role: 'system', content: 'Respond with JSON only: { "verdict": "TRUE"|"MISLEADING"|"FALSE"|"UNVERIFIED", "summary": "2-3 sentences", "confidence": "high"|"medium"|"low" }. CALIBRATION: Absence of evidence is NOT contradiction — if no source addresses the claim, return UNVERIFIED, never FALSE. FALSE only when a source EXPLICITLY contradicts the claim with specific facts. A speaker\'s first-person account of their own experience, uncontradicted, is UNVERIFIED.' },
     {
       role: 'user',
       content: `Verify this claim or statement:

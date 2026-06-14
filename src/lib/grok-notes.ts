@@ -43,13 +43,19 @@ function isGarbageText(text: string): boolean {
   return GARBAGE_PATTERNS.some(p => t.includes(p))
 }
 
-// Keep only posts that actually relate to the claim (share ≥2 significant words).
+// Keep only posts that actually relate to the claim. Niche/first-person claims often share just
+// one strong proper-noun entity with the matching post, so require ≥2 generic overlaps OR ≥1
+// distinctive (6+ char) entity overlap — otherwise relevant posts get filtered to an empty lens.
 function relevantTo(claim: string) {
   const claimWords = new Set((claim.toLowerCase().match(/[a-z]{4,}/g) ?? []))
+  const claimEntities = new Set((claim.toLowerCase().match(/[a-z]{6,}/g) ?? []))
   return (text: string): boolean => {
     const words = text.toLowerCase().match(/[a-z]{4,}/g) ?? []
     let overlap = 0
-    for (const w of words) if (claimWords.has(w)) { overlap++; if (overlap >= 2) return true }
+    for (const w of words) {
+      if (claimEntities.has(w)) return true          // one distinctive entity match is enough
+      if (claimWords.has(w)) { overlap++; if (overlap >= 2) return true }
+    }
     return false
   }
 }

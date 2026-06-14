@@ -47,6 +47,14 @@ function formatMs(ms: number) {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 }
 
+// Display label for the topic category chip — shows the user which topic model drove the lenses.
+const CATEGORY_LABEL: Record<string, string> = {
+  political: 'Politics', business: 'Business', finance: 'Finance', tech: 'Tech',
+  science: 'Science', health: 'Health', history: 'History', sports: 'Sports',
+  entertainment: 'Entertainment', travel: 'Travel', food: 'Food',
+  environment: 'Environment', world: 'World', general: 'General',
+}
+
 // Highlights numbers, percentages, dollar amounts in amber
 function HighlightedText({ text }: { text: string }) {
   const parts = text.split(/(\$?[\d,]+\.?\d*\s*(?:%|billion|million|thousand|[BMK])?)/gi)
@@ -92,7 +100,7 @@ function FullAnalysisPanel({ card }: { card: CounterpointCard }) {
 
   useEffect(() => {
     setLoading(true)
-    const sources = (['left', 'center', 'right', 'alt', 'grok'] as SpectrumLens[])
+    const sources = (['establishment', 'left', 'center', 'right', 'alt', 'grok'] as SpectrumLens[])
       .flatMap(lens => (card.spectrum[lens] ?? []).map(item => ({
         tab: lens, source: item.source, url: item.url, quote: item.quote,
       })))
@@ -122,10 +130,11 @@ function FullAnalysisPanel({ card }: { card: CounterpointCard }) {
   if (!data) return <p className="text-xs text-gray-600 italic py-4">No synthesis available yet.</p>
 
   const lenses: Array<{ key: SpectrumLens; label: string; border: string; text: string; bg: string }> = [
+    { key: 'establishment', label: 'Establishment',     border: 'border-violet-500/30', text: 'text-violet-300', bg: 'bg-violet-500/5' },
     { key: 'left',   label: 'Left',             border: 'border-blue-500/30',   text: 'text-blue-300',   bg: 'bg-blue-500/5' },
     { key: 'center', label: 'Center',            border: 'border-slate-500/30',  text: 'text-slate-200',  bg: 'bg-slate-400/5' },
     { key: 'right',  label: 'Right',             border: 'border-red-500/30',    text: 'text-red-300',    bg: 'bg-red-500/5' },
-    { key: 'alt',    label: 'Alt / Independent', border: 'border-amber-500/30',  text: 'text-amber-300',  bg: 'bg-amber-500/5' },
+    { key: 'alt',    label: 'Independent',       border: 'border-amber-500/30',  text: 'text-amber-300',  bg: 'bg-amber-500/5' },
   ]
 
   return (
@@ -236,6 +245,15 @@ function EvidenceCardBase({ card, isActive, onSeek, onActivate, onArchive, onRer
         </span>
         {/* Claim — fills available space, shown once (no body repeat) */}
         <span className="text-sm text-white/85 truncate flex-1 min-w-0">{card.claim}</span>
+        {/* Topic category chip — surfaces which topic model drove the lenses (not just politics) */}
+        {card.category && (
+          <span
+            className="hidden sm:inline text-[9px] font-medium uppercase tracking-wide text-gray-400 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 shrink-0"
+            title={`Topic: ${CATEGORY_LABEL[card.category] ?? card.category}`}
+          >
+            {CATEGORY_LABEL[card.category] ?? card.category}
+          </span>
+        )}
         {card.cacheHit && (
           <span
             className="text-[10px] font-medium text-indigo-400/70 shrink-0"
@@ -292,6 +310,27 @@ function EvidenceCardBase({ card, isActive, onSeek, onActivate, onArchive, onRer
               {/* Secondary reasoning — small, only when we already led with the facts */}
               {card.middleGround && card.verdictSummary && (
                 <p className="text-xs text-gray-500 leading-relaxed select-text"><HighlightedText text={card.verdictSummary} /></p>
+              )}
+              {/* Counterpoint — the opposing fact (the namesake feature) */}
+              {card.counterpoint && (
+                <div className="rounded-xl border border-sky-500/25 bg-sky-500/[0.07] px-3 py-2.5 flex gap-2">
+                  <span className="text-sky-300 text-sm shrink-0 mt-0.5">↔</span>
+                  <div className="min-w-0">
+                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-sky-300/80 mb-0.5">Counterpoint — {card.counterpoint.question}</span>
+                    <p className="text-sm text-sky-100/90 leading-relaxed select-text"><HighlightedText text={card.counterpoint.fact} /></p>
+                    {card.counterpoint.sourceUrl && (
+                      <a
+                        href={card.counterpoint.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="inline-block mt-1 text-[10px] text-sky-400/70 hover:text-sky-300 underline truncate max-w-full"
+                      >
+                        {card.counterpoint.sourceName ?? 'source'} ↗
+                      </a>
+                    )}
+                  </div>
+                </div>
               )}
               {card.visionSnapshot?.signals?.length ? (
                 <div className="flex flex-wrap gap-1">
