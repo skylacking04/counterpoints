@@ -13,11 +13,25 @@ sides, so all sides are shown. A self-review pass audits each verdict before it'
 Built for the [This Week in Startups $5K "Fact Checker for Podcasts" bounty](https://launch1.notion.site/5K-Bounty-Create-a-Fact-Checker-App-for-Podcasts).
 
 - **GitHub:** https://github.com/skylacking04/counterpoints
-- **Live app:** https://counterpoints-app-zdku5kri5a-uc.a.run.app
-- **Cost & architecture page:** https://counterpoints-app-zdku5kri5a-uc.a.run.app/costs
+- **Live app:** https://counterpoints-app-1071951656531.us-central1.run.app
+- **How to use:** https://counterpoints-app-1071951656531.us-central1.run.app/how-to
+- **Cost & architecture page:** https://counterpoints-app-1071951656531.us-central1.run.app/costs
 - **Cost audit worksheet:** [`COST_AUDIT.md`](./COST_AUDIT.md)
 
 > **Runs fully locally** with `npm run dev` — no cloud deploy needed to try it. (Cloud Run deploy is optional, for hosting.)
+
+---
+
+## How to use it (video guides)
+
+| Guide | Video |
+|---|---|
+| Full walkthrough (2 min) | https://www.youtube.com/watch?v=2TaEB2M8b9c |
+| Live transcripts | https://youtu.be/Ac8iCgKT1-E |
+| Highlight transcript → fact-check | https://youtu.be/BrcVdSgaLBc |
+| Check live sources & fact-check sources | https://youtu.be/xebHovdesWw |
+
+Full written guides with step-by-step instructions: **[/how-to](https://counterpoints-app-1071951656531.us-central1.run.app/how-to)**
 
 ---
 
@@ -168,7 +182,7 @@ keeps the image lean.
 Roughly **$0.05–0.09 per fresh fact-check, ~$0 cached**, with a **~$3.50/mo fixed floor** (the proxy);
 everything else scales to zero at idle. Full line-by-line breakdown, the per-claim call math, and a
 paste-ready prompt to re-price it against live provider pricing are in **[`COST_AUDIT.md`](./COST_AUDIT.md)**
-and on the **[/costs](https://counterpoints-app-zdku5kri5a-uc.a.run.app/costs)** page.
+and on the **[/costs](https://counterpoints-app-1071951656531.us-central1.run.app/costs)** page.
 
 ---
 

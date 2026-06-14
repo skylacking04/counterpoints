@@ -33,9 +33,12 @@ const FEATURES = [
   },
 ]
 
-// Demo video: set youtubeId OR drop /public/demo.mp4 (+ optional /public/demo-poster.png).
-// Until an asset exists, a styled placeholder renders so the layout is ready.
-const DEMO_VIDEO = { youtubeId: '', mp4: '/demo.mp4', poster: '/demo-poster.png' }
+const HOW_TO_VIDEOS = [
+  { id: '2TaEB2M8b9c', label: '▶ Full walkthrough', sub: '2-min tour of the whole app', anchor: 'overview' },
+  { id: 'Ac8iCgKT1-E', label: '🎧 Live transcripts',  sub: 'Capture any tab audio live',   anchor: 'live' },
+  { id: 'BrcVdSgaLBc', label: '📝 Highlight to fact-check', sub: 'Select any line to check it', anchor: 'highlight' },
+  { id: 'xebHovdesWw', label: '⚖ Check live sources', sub: 'Read the full source spectrum', anchor: 'sources' },
+]
 
 const HOW_STEPS = [
   { icon: Link2,        t: 'Paste a URL or go live', d: 'Drop a YouTube link or capture live tab/mic audio. The transcript streams in seconds.' },
@@ -44,44 +47,34 @@ const HOW_STEPS = [
   { icon: CheckCircle2, t: 'Verdict + the actual facts', d: 'A clear verdict with the middle-ground truth and cited sources — then cached so repeats are instant.' },
 ]
 
-// Demo video player — YouTube embed, local mp4, or placeholder (asset-driven)
-function DemoVideo() {
-  const [mp4Failed, setMp4Failed] = useState(false)
-  if (DEMO_VIDEO.youtubeId) {
-    return (
-      <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 bg-black" style={{ aspectRatio: '16/9' }}>
-        <iframe
-          className="absolute inset-0 w-full h-full"
-          src={`https://www.youtube.com/embed/${DEMO_VIDEO.youtubeId}`}
-          title="CounterPoints demo"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
-      </div>
-    )
-  }
-  if (!mp4Failed) {
-    return (
-      <video
-        className="w-full rounded-2xl border border-white/10 bg-black"
-        style={{ aspectRatio: '16/9' }}
-        controls
-        playsInline
-        poster={DEMO_VIDEO.poster}
-        onError={() => setMp4Failed(true)}
-      >
-        <source src={DEMO_VIDEO.mp4} type="video/mp4" />
-      </video>
-    )
-  }
+function HowToGrid() {
   return (
-    <div
-      className="w-full rounded-2xl border-2 border-dashed border-white/15 bg-white/[0.02] flex flex-col items-center justify-center gap-2 text-center"
-      style={{ aspectRatio: '16/9' }}
-    >
-      <span className="text-4xl opacity-60">▶</span>
-      <span className="text-sm text-gray-400 font-medium">Demo video coming soon</span>
-      <span className="text-[11px] text-gray-300">A 60-second walkthrough of CounterPoints in action</span>
+    <div className="grid sm:grid-cols-2 gap-4">
+      {HOW_TO_VIDEOS.map(v => (
+        <div key={v.id} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden hover:border-white/20 transition-colors">
+          <div className="w-full bg-black" style={{ aspectRatio: '16/9' }}>
+            <iframe
+              className="w-full h-full"
+              src={`https://www.youtube.com/embed/${v.id}`}
+              title={v.label}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+          <div className="px-4 py-3 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-white leading-snug">{v.label}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{v.sub}</p>
+            </div>
+            <Link
+              href={`/how-to#${v.anchor}`}
+              className="shrink-0 text-xs text-indigo-300 hover:text-white border border-indigo-500/25 hover:border-white/20 px-2.5 py-1 rounded-lg transition-colors"
+            >
+              Full guide →
+            </Link>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -99,6 +92,7 @@ export default function Home() {
         <Image src="/counterpoints.png" alt="CounterPoints" width={200} height={133} className="h-24 w-auto" priority />
         <div className="flex items-center gap-3">
           <Link href="/about" className="text-xs text-gray-400 hover:text-white transition-colors hidden sm:block">About Truth</Link>
+          <Link href="/how-to" className="text-xs text-gray-400 hover:text-white transition-colors hidden sm:block">How to use</Link>
           {userEmail ? (
             <Link href="/history" className="flex items-center gap-1.5 text-xs text-indigo-300/80 hover:text-white border border-indigo-500/20 hover:border-white/20 rounded-xl px-3 py-2 transition-colors max-w-[180px]">
               <User size={14} className="shrink-0" /> <span className="truncate">{userEmail}</span>
@@ -186,15 +180,13 @@ export default function Home() {
         </motion.div>
       </section>
 
-      {/* Demo video */}
-      <section className="px-6 pb-20 max-w-3xl mx-auto">
-        <h2 className="text-center text-2xl font-semibold text-white/80 mb-6">See it in action</h2>
-        <DemoVideo />
-        <p className="text-center text-xs text-gray-500 mt-4">
-          Want to capture audio from any tab?{' '}
-          <Link href="/app" className="text-indigo-400/80 hover:text-indigo-300 underline">Open the app</Link>
-          {' '}and click <span className="text-gray-400">“Setup guide →”</span> for Mac &amp; Windows steps.
-        </p>
+      {/* How to use it — video grid */}
+      <section className="px-6 pb-20 max-w-5xl mx-auto">
+        <div className="flex items-baseline justify-between mb-8">
+          <h2 className="text-2xl font-semibold text-white/80">How to use it</h2>
+          <Link href="/how-to" className="text-sm text-indigo-300 hover:text-white transition-colors">All guides →</Link>
+        </div>
+        <HowToGrid />
       </section>
 
       {/* 3 core features */}
@@ -268,6 +260,7 @@ export default function Home() {
         <span>CounterPoints — built for truth-seekers, not partisans.</span>
         <div className="flex gap-6">
           <Link href="/app" className="hover:text-gray-400 transition-colors">App</Link>
+          <Link href="/how-to" className="hover:text-gray-400 transition-colors">How to</Link>
           <Link href="/about" className="hover:text-gray-400 transition-colors">About</Link>
         </div>
       </footer>
