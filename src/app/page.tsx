@@ -47,34 +47,54 @@ const HOW_STEPS = [
   { icon: CheckCircle2, t: 'Verdict + the actual facts', d: 'A clear verdict with the middle-ground truth and cited sources — then cached so repeats are instant.' },
 ]
 
-function HowToGrid() {
+function HowToSection() {
+  const [hero] = HOW_TO_VIDEOS
+  const rest = HOW_TO_VIDEOS.slice(1)
   return (
-    <div className="grid sm:grid-cols-2 gap-4">
-      {HOW_TO_VIDEOS.map(v => (
-        <div key={v.id} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden hover:border-white/20 transition-colors">
-          <div className="w-full bg-black" style={{ aspectRatio: '16/9' }}>
-            <iframe
-              className="w-full h-full"
-              src={`https://www.youtube.com/embed/${v.id}`}
-              title={v.label}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
-          <div className="px-4 py-3 flex items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-semibold text-white leading-snug">{v.label}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{v.sub}</p>
+    <div className="space-y-5">
+      {/* Hero video — full width */}
+      <div className="rounded-2xl border border-white/10 bg-black overflow-hidden" style={{ aspectRatio: '16/9' }}>
+        <iframe
+          className="w-full h-full"
+          src={`https://www.youtube.com/embed/${hero.id}`}
+          title={hero.label}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+      <p className="text-sm text-gray-400 text-center">{hero.label} — {hero.sub}</p>
+
+      {/* 3 smaller thumbnails */}
+      <div className="grid grid-cols-3 gap-3">
+        {rest.map(v => (
+          <Link key={v.id} href={`/how-to#${v.anchor}`} className="group rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden hover:border-indigo-500/40 transition-colors">
+            <div className="w-full bg-black relative" style={{ aspectRatio: '16/9' }}>
+              <img
+                src={`https://img.youtube.com/vi/${v.id}/mqdefault.jpg`}
+                alt={v.label}
+                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white text-lg pl-0.5">▶</div>
+              </div>
             </div>
-            <Link
-              href={`/how-to#${v.anchor}`}
-              className="shrink-0 text-xs text-indigo-300 hover:text-white border border-indigo-500/25 hover:border-white/20 px-2.5 py-1 rounded-lg transition-colors"
-            >
-              Full guide →
-            </Link>
-          </div>
-        </div>
-      ))}
+            <div className="px-3 py-2">
+              <p className="text-xs font-medium text-white leading-snug">{v.label}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">{v.sub}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* CTA button */}
+      <div className="text-center pt-2">
+        <Link
+          href="/how-to"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 hover:border-indigo-500/50 text-sm font-medium transition-all"
+        >
+          View all guides →
+        </Link>
+      </div>
     </div>
   )
 }
@@ -180,13 +200,10 @@ export default function Home() {
         </motion.div>
       </section>
 
-      {/* How to use it — video grid */}
-      <section className="px-6 pb-20 max-w-5xl mx-auto">
-        <div className="flex items-baseline justify-between mb-8">
-          <h2 className="text-2xl font-semibold text-white/80">How to use it</h2>
-          <Link href="/how-to" className="text-sm text-indigo-300 hover:text-white transition-colors">All guides →</Link>
-        </div>
-        <HowToGrid />
+      {/* How to use it */}
+      <section className="px-6 pb-20 max-w-3xl mx-auto">
+        <h2 className="text-2xl font-semibold text-white/80 mb-8 text-center">How to use it</h2>
+        <HowToSection />
       </section>
 
       {/* 3 core features */}
