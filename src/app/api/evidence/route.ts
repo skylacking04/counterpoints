@@ -84,32 +84,34 @@ async function buildSpectrumItems(
   // Establishment lens = the institutional consensus → use REAL Google grounding first so it
   // reliably surfaces Wikipedia / official fact-checkers instead of whatever Tavily happens to hit.
   const preferGrounding = lens === 'establishment'
-  let articles = await searchArticles(query, merged, 2, lens, { preferGrounding })
+  // Fetch 3 (not 2) so the per-article relevance filter below can drop an off-topic hit and still
+  // leave ~2 real sources for this lens.
+  let articles = await searchArticles(query, merged, 3, lens, { preferGrounding })
   // Loosen if the domain-restricted search found nothing — drop the domain filter to surface
   // the closest available source for this lens rather than showing a blank column.
   if (articles.length === 0) {
-    articles = await searchArticles(query, [], 2, lens, { preferGrounding })
+    articles = await searchArticles(query, [], 3, lens, { preferGrounding })
   }
 
-  // One quote LLM call per article (both articles in parallel). The old per-article
-  // journalist-bias summary call was dropped — it doubled lens latency and pushed lenses
-  // past the timeout, which is why left/center/right stopped returning sources.
-  return Promise.all(
-    articles.slice(0, 2).map(async (art) => {
+  // One LLM call per article: judge RELEVANCE + extract a quote in the same pass. Drop sources that
+  // don't actually address the claim — search engines return off-topic articles (the "CNN story about
+  // a homeless youth in Uganda for a Yahoo claim" failure), and showing them made verdicts look wrong.
+  // An empty lens after filtering is fine — the card always shows all six tabs with a "no sources" state.
+  const judged = await Promise.all(
+    articles.slice(0, 3).map(async (art): Promise<SpectrumItem | null> => {
       const profile = getSourceProfile(art.url)
-      // If the quote LLM fails (e.g. Vertex 429), still show the source using its own snippet.
       let quote = ''
+      let relevant = true  // on LLM/parse failure, keep the source (graceful — failures are rare)
       try {
-        quote = (await callLLM([
-          { role: 'system', content: 'Respond with 1 sentence only, no markdown, no quotes.' },
-          {
-            role: 'user',
-            content: `Claim: "${claim}"
-Article excerpt: "${art.markdown.slice(0, 800)}"
-In one sentence, what does this article say about the claim? Be specific, cite a key fact or figure if present.`,
-          },
-        ], settings)).trim()
-      } catch { /* fall back below */ }
+        const raw = await callLLM([
+          { role: 'system', content: 'You judge whether a source actually addresses a specific claim. Respond JSON only: { "relevant": true|false, "quote": "one specific sentence on what it says about the claim (cite a key fact/figure), or empty" }. Set relevant=false if the article is about a different topic, person, or event and does not address the claim.' },
+          { role: 'user', content: `Claim: "${claim}"\nArticle excerpt: "${art.markdown.slice(0, 800)}"\nDoes this article actually address THIS claim?` },
+        ], settings)
+        const j = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim())
+        relevant = j.relevant !== false
+        quote = typeof j.quote === 'string' ? j.quote.trim() : ''
+      } catch { /* keep graceful */ }
+      if (!relevant) return null  // off-topic → drop rather than show an irrelevant source
       if (!quote) quote = art.markdown.slice(0, 200).trim() || art.title || '(source found — summary unavailable)'
 
       return {
@@ -123,6 +125,7 @@ In one sentence, what does this article say about the claim? Be specific, cite a
       } satisfies SpectrumItem
     })
   )
+  return judged.filter((x): x is SpectrumItem => x !== null).slice(0, 2)
 }
 
 async function buildAltItems(

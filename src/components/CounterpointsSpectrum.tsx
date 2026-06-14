@@ -61,21 +61,11 @@ const LENS_COLOR: Partial<Record<TabKey, string>> = {
   establishment: 'border-l-2 border-violet-500/40 pl-2',
 }
 
-// Topic-adaptive tab list. Always: X Community, Establishment, Center, Independent. Left/Right
-// only for partisan topics. Empty lenses are hidden to keep the card scannable; if everything is
-// empty we still show the base set so the user sees the "no sources" state rather than a blank row.
-function tabsForCard(card: CounterpointCard) {
-  // Every topic now gets the full spectrum — there's a left/right framing on tech, business, taxes,
-  // not just politics. Left/Right tabs show for all categories (empty ones still get hidden below).
-  const baseKeys: TabKey[] = ['grok', 'establishment', 'center', 'left', 'right', 'alt']
-  // Also surface any lens that actually returned sources — covers restored older cards (no
-  // category) whose Left/Right lenses are populated, so nothing already gathered gets hidden.
-  const populatedExtra = TABS.map(t => t.key).filter(k => (card.spectrum[k]?.length ?? 0) > 0)
-  const keys = new Set<TabKey>([...baseKeys, ...populatedExtra])
-  const base = TABS.filter(t => keys.has(t.key))
-  const populated = base.filter(t => (card.spectrum[t.key]?.length ?? 0) > 0)
-  return populated.length ? populated : base
-}
+// ALWAYS show all six perspectives, in display order: 𝕏 Community · Establishment · Center · Left ·
+// Right · Independent. Every claim is classified and searched across all six lenses, so the card
+// always exposes the full spectrum — an empty lens renders an explicit "no sources for this lens"
+// state rather than being hidden, so users can see every side was actually considered.
+const tabsForCard = (_card: CounterpointCard) => TABS
 
 // Extract a short readable outlet name from a URL
 function outletName(url: string, fallback?: string): string {
@@ -244,7 +234,11 @@ function formatTime(sec: number) {
 }
 
 export function CounterpointsSpectrum({ card }: Props) {
-  const [activeTab, setActiveTab] = useState<TabKey>('grok')
+  // Open on the first lens that actually has sources (all six tabs are always shown, but don't land
+  // the user on an empty one). They can still click any tab, including empty lenses.
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    () => TABS.find(t => (card.spectrum[t.key]?.length ?? 0) > 0)?.key ?? 'center'
+  )
 
   // Topic-adaptive: which tabs to show, and keep `active` valid as lenses stream in / categories
   // differ (the stored activeTab may not be in the visible set).

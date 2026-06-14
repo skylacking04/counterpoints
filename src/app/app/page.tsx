@@ -948,7 +948,6 @@ export default function Home() {
   // before this feature have no `origin` → treat as 'auto' (back-compat).
   const manualCards = cards.filter(c => c.origin === 'manual')
   const autoCards   = cards.filter(c => (c.origin ?? 'auto') === 'auto')
-  const latestAuto  = autoCards[0] ?? null
 
   const renderCard = (card: CounterpointCard) => (
     <EvidenceCard
@@ -963,7 +962,7 @@ export default function Home() {
   )
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
+    <div className="h-[100svh] overflow-hidden bg-[#0a0a0a] text-white flex flex-col">
       {/* Header */}
       <header className="border-b border-white/8 px-4 py-1.5 flex items-center gap-3 bg-[#0d0d14]">
         <Link href="/" className="flex items-center gap-2 shrink-0">
@@ -1171,8 +1170,8 @@ export default function Home() {
 
       {/* Main area — video + 2-col layout */}
       <div className="flex-1 flex flex-col overflow-hidden px-4 pb-4 pt-1 gap-2 min-h-0">
-        {/* Video row — compact, centered */}
-        <div className="shrink-0">
+        {/* Video row — compact, centered. Hidden when a panel is expanded so the box can fill the screen (esp. mobile). */}
+        <div className={`shrink-0 ${expandedPanel ? 'hidden md:block' : ''}`}>
           {xPost ? (
             <XPostEmbed post={xPost} />
           ) : (
@@ -1293,9 +1292,9 @@ export default function Home() {
                 <button
                   onClick={() => setExpandedPanel(p => p === 'transcript' ? null : 'transcript')}
                   title={expandedPanel === 'transcript' ? 'Restore split view' : 'Expand (Esc to exit)'}
-                  className="hidden md:inline text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-400 hover:text-white hover:border-white/20"
+                  className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-300 hover:text-white hover:border-white/20"
                 >
-                  {expandedPanel === 'transcript' ? '⊡' : '⛶'}
+                  {expandedPanel === 'transcript' ? '⊡ Shrink' : '⛶ Expand'}
                 </button>
               </div>
             </div>
@@ -1402,6 +1401,16 @@ export default function Home() {
               </button>
             </div>
 
+            {/* Mobile-only expand toggle for the fact-check panel (desktop has it in the header above) */}
+            <div className="flex md:hidden justify-end px-3 py-1.5 border-b border-white/6 shrink-0">
+              <button
+                onClick={() => setExpandedPanel(p => p === 'checks' ? null : 'checks')}
+                className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-gray-300 hover:text-white hover:border-white/20"
+              >
+                {expandedPanel === 'checks' ? '⊡ Shrink' : '⛶ Expand'}
+              </button>
+            </div>
+
             {/* Scrollable body — gauge + banners + cards live here so the tab menu stays pinned */}
             <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">
 
@@ -1441,32 +1450,23 @@ export default function Home() {
               </p>
             )}
 
-            {/* MAIN tab — your manual checks, with the single latest auto-check pinned on top */}
+            {/* MAIN tab — ONLY your manual checks. Auto-checks live entirely on the Auto tab. */}
             {rightTab === 'main' && (
               <>
-                {latestAuto && (
-                  <div className="shrink-0 space-y-1">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[10px] font-semibold text-indigo-400/70 uppercase tracking-wider">⚡ Latest auto-check</span>
-                      {autoCards.length > 1 && (
-                        <button
-                          onClick={() => setRightTab('auto')}
-                          className="text-[10px] text-indigo-400/70 hover:text-indigo-300 transition-colors"
-                        >
-                          See more auto facts ({autoCards.length}) →
-                        </button>
-                      )}
-                    </div>
-                    {renderCard(latestAuto)}
-                  </div>
+                {manualCards.length > 0 && manualCards.map(renderCard)}
+                {manualCards.length === 0 && (
+                  <p className="text-xs text-gray-400 italic text-center py-6 px-3">
+                    Click any transcript sentence — or highlight text — to fact-check it here.
+                  </p>
                 )}
-                {manualCards.length > 0
-                  ? manualCards.map(renderCard)
-                  : cards.length > 0 && (
-                    <p className="text-xs text-gray-400 italic text-center py-6 px-3">
-                      Click any transcript sentence — or highlight text — to fact-check it here.
-                    </p>
-                  )}
+                {autoCards.length > 0 && (
+                  <button
+                    onClick={() => setRightTab('auto')}
+                    className="w-full text-[11px] text-indigo-300 hover:text-indigo-200 transition-colors py-2 border-t border-white/5 mt-1"
+                  >
+                    ⚡ {autoCards.length} auto-check{autoCards.length > 1 ? 's' : ''} in the Auto tab →
+                  </button>
+                )}
               </>
             )}
 
