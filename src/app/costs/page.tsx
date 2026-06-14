@@ -8,7 +8,7 @@ const SPEC = [
   { req: 'Real-time: listen to the show live and give feedback in a sidebar', how: 'Tab/mic audio captured in-browser and transcribed every few seconds (Whisper via Groq); claims auto-scan on a rolling window. Fact-check cards stream into the side panel live.' },
   { req: 'Fact-checker: monitor for factual claims, give corrections + background data', how: 'Every claim is checked across Left / Center / Right / Alt media + X Community Notes, then reconciled into a verdict (TRUE / MISLEADING / FALSE / UNVERIFIED) with a one-line "the actual facts" middle-ground summary and cited sources.' },
   { req: 'Transcript shown in real time, linked to the commentary', how: 'Live rolling transcript with each checked claim highlighted and click-linked to its fact-check card; clicking a card jumps the video + transcript to that moment.' },
-  { req: '(Bonus) Production-ready', how: 'Cross-user knowledge-base cache (repeat claims are instant + free), session history per email, scales to zero on Cloud Run, ~$0.04 per fresh claim.' },
+  { req: '(Bonus) Production-ready', how: 'Cross-user knowledge-base cache (repeat claims are instant + free), session history per email, scales to zero on Cloud Run, ~$0.05–$0.09 per fresh claim.' },
 ]
 
 // ─── How it's built (architecture) — bounty-appropriate, no secrets ───────────────────
@@ -39,7 +39,7 @@ const SERVICES: { group: string; icon: React.ReactNode; rows: Row[] }[] = [
       { service: 'Gemini 2.5 Flash (Vertex AI)', usedFor: 'Claim detection, verdict, quote extraction, vision, reconcile, compare, transcript fallback, search grounding', pricing: '$0.30 / 1M input · $2.50 / 1M output (verified Jun 2026). Has a free per-minute quota we hit (429 rate limits).', est: '$8 – $14', tier: 'watch' },
       { service: 'Gemini 2.5 Flash (Developer API)', usedFor: 'Overflow / fallback when Vertex is rate-limited (separate quota pool)', pricing: 'Free tier + same paid rates. Currently absorbs Vertex overflow.', est: '$0 – $3', tier: 'cheap' },
       { service: 'text-embedding-004 (Vertex)', usedFor: 'Knowledge-base semantic matching (cache hits for repeat claims)', pricing: '~$0.000025 / 1k chars — negligible', est: '< $1', tier: 'free' },
-      { service: 'Grok-3 (xAI)', usedFor: 'X / Community Notes search per claim', pricing: '~$3 / 1M input · $15 / 1M output — most expensive per call', est: '$5 – $15', tier: 'spend' },
+      { service: 'Grok-3 (xAI)', usedFor: 'X / Community Notes search per claim (0–1 call; falls back to Jina + Tavily if key not configured)', pricing: '~$3 / 1M input · $15 / 1M output — most expensive per call', est: '$5 – $15', tier: 'spend' },
       { service: 'Whisper large-v3 (Groq)', usedFor: 'Live tab/mic audio → transcript (only when capturing)', pricing: '~$0.04 / hour of audio', est: '$1 – $5', tier: 'cheap' },
       { service: 'GPT-4o / Claude (BYOK)', usedFor: 'Optional — only if a user pastes their own key in Settings', pricing: 'Paid by the user, not us', est: '$0', tier: 'free' },
     ],
@@ -48,7 +48,7 @@ const SERVICES: { group: string; icon: React.ReactNode; rows: Row[] }[] = [
     group: 'Search & Sources',
     icon: <Search size={16} />,
     rows: [
-      { service: 'Tavily', usedFor: 'Primary web search for Left/Center/Right/Alt article sources (~4-5 searches per claim)', pricing: 'Researcher plan: 1,000 credits/mo free, then ~$0.008/credit. 1 search = 1 credit.', est: '$0 – $40', tier: 'spend' },
+      { service: 'Tavily', usedFor: 'Primary web search for Left/Center/Right/Alt article sources (~5–8 searches typical; up to ~15 when Gemini grounding + Jina fallback chain fires)', pricing: 'Researcher plan: 1,000 credits/mo free (~200 fresh claims), then ~$0.008/credit. 1 search = 1 credit.', est: '$0 – $40', tier: 'spend' },
       { service: 'Jina (s.jina.ai / r.jina.ai)', usedFor: 'Search + page-read fallback when Tavily/Gemini miss', pricing: 'Free tier (~1M tokens), then paid. Used as fallback only.', est: '$0 – $5', tier: 'cheap' },
       { service: 'YouTube Data API', usedFor: 'Video title / channel / duration metadata', pricing: 'Free — 10,000 units/day quota (metadata = 1 unit)', est: '$0', tier: 'free' },
       { service: 'yt-dlp + captions', usedFor: 'Real closed-caption fetch when InnerTube is blocked', pricing: 'Free software; runs on Cloud Run CPU', est: '$0', tier: 'free' },
@@ -68,7 +68,7 @@ const SERVICES: { group: string; icon: React.ReactNode; rows: Row[] }[] = [
 
 const RISKS = [
   { title: 'The analyze loop fires every 3–5 seconds', body: 'While a video plays, the app calls Gemini to scan for new claims every few seconds. Per long video that\'s dozens–hundreds of Gemini calls. This is the #1 driver of the Vertex 429 rate limits and silent cost creep at scale.' },
-  { title: 'Tavily pay-as-you-go after 1,000 credits', body: 'Each claim runs ~4-5 Tavily searches. 1,000 free credits ≈ 200 claims/month. Past that it\'s ~$0.008/credit — a busy month of fresh videos can add $20–40. The knowledge-base cache mitigates this (repeat claims cost $0).' },
+  { title: 'Tavily pay-as-you-go after 1,000 credits per key', body: 'Each claim runs ~5–8 Tavily searches. 1,000 free credits ≈ 125–200 fresh claims/key. Rotating multiple Tavily keys (TAVILY_KEY, TAVILY_KEY_2, TAVILY_KEY_3) multiplies the free pool. Past quota it\'s ~$0.008/credit. The knowledge-base cache means repeat claims cost $0.' },
   { title: 'Grok-3 is the priciest per call', body: 'At $15/1M output tokens, the X-Community lens is the most expensive single call per claim. If volume grows, this is the first thing to cap or cache.' },
   { title: 'Live capture (Whisper) runs continuously', body: 'When tab/mic capture is on, Groq transcribes audio nonstop. Long live sessions add up. Fine occasionally, watch it for hours-long streams.' },
 ]
@@ -89,7 +89,7 @@ const LOCAL = [
 ]
 
 const SPEED = [
-  { title: 'Make the Developer API the primary LLM', body: 'Vertex is rate-limited (429) and the fallback dance adds ~2s per call. Routing LLM calls to the Developer API first (as we did for search) cuts the verdict from ~30s to ~15s.' },
+  { title: 'Developer API is already primary for search; consider it for verdict too', body: 'Search/grounding calls hit the Developer API first (separate quota pool, rarely rate-limited). Verdict/analyze calls hit Vertex first and fall back to Developer API on 429. If Vertex 429s are frequent, flipping verdict calls to Developer-API-first cuts the retry delay ~2s per call.' },
   { title: 'Tavily-first search (done)', body: 'We reordered so the fast working Tavily key runs before slow Gemini grounding — sources now stream in ~10s.' },
   { title: 'Fewer LLM hops per claim', body: 'Each lens does a quote-extraction call + there\'s a verdict + a verify pass. Merging quote extraction into the search step (or using the article snippet) removes a serial round-trip.' },
   { title: 'Local inference for the hot path', body: 'The 3-5s analyze loop is the most latency-sensitive. A local small model (Ollama) answers in <1s with no rate limits.' },
@@ -204,14 +204,15 @@ export default function CostsPage() {
         <section className="mb-10 rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.05] p-5">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-white/90 mb-3"><Zap size={16} className="text-indigo-300" /> Where the money goes — per fact-check</h2>
           <ul className="space-y-1.5 text-sm text-gray-300">
-            <li className="flex justify-between"><span>~4-5 Tavily searches (one per lens)</span><span className="font-mono text-gray-400">~$0.03 (or free in quota)</span></li>
-            <li className="flex justify-between"><span>~12-14 Gemini Flash calls (quotes + verdict + verify)</span><span className="font-mono text-gray-400">~$0.008</span></li>
-            <li className="flex justify-between"><span>1 Grok-3 call (X Community)</span><span className="font-mono text-gray-400">~$0.01</span></li>
+            <li className="flex justify-between"><span>~5–8 Tavily searches (typical; up to 15 in heavy fallback)</span><span className="font-mono text-gray-400">~$0.04–$0.12 (or free in quota)</span></li>
+            <li className="flex justify-between"><span>~14–20 Gemini Flash calls (quotes + verdict + self-review + counterpoint)</span><span className="font-mono text-gray-400">~$0.01–$0.015</span></li>
+            <li className="flex justify-between"><span>0–1 Grok-3 call (X Community; Jina fallback if key absent)</span><span className="font-mono text-gray-400">~$0–$0.01</span></li>
             <li className="flex justify-between"><span>2 embeddings (cache lookup + store)</span><span className="font-mono text-gray-400">&lt; $0.001</span></li>
-            <li className="flex justify-between border-t border-white/10 pt-1.5 mt-1.5 font-semibold text-white"><span>≈ per fresh claim</span><span className="font-mono">~$0.05 – $0.09</span></li>
-            <li className="flex justify-between text-green-300"><span>repeat / cached claim</span><span className="font-mono">$0.00</span></li>
+            <li className="flex justify-between border-t border-white/10 pt-1.5 mt-1.5 font-semibold text-white"><span>≈ per fresh claim (typical)</span><span className="font-mono">~$0.05 – $0.09</span></li>
+            <li className="flex justify-between text-amber-200/80"><span>≈ per fresh claim (heavy fallback, no quota)</span><span className="font-mono">up to ~$0.15</span></li>
+            <li className="flex justify-between text-green-300"><span>repeat / cached claim (cosine ≥ 0.92)</span><span className="font-mono">$0.00</span></li>
           </ul>
-          <p className="text-[11px] text-gray-500 mt-3">The transcript + claim caches are what keep this low — most real-world videos share trending claims, so cache hit rate climbs over time.</p>
+          <p className="text-[11px] text-gray-500 mt-3">The transcript + claim caches are what keep this low — most real-world videos share trending claims, so cache hit rate climbs over time. Typical cost assumes Tavily quota is healthy; worst-case fires when all fallback chains run.</p>
         </section>
 
         {/* Risks */}
