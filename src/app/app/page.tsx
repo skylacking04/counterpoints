@@ -20,6 +20,7 @@ import { useFrameCapture }    from '@/hooks/useFrameCapture'
 import { useYouTubeSync }     from '@/hooks/useYouTubeSync'
 import { extractVideoId }     from '@/lib/youtube-transcript'
 import { withDefaults, verdictDelta } from '@/lib/calibration'
+import { track } from '@/lib/track'
 import type { XPostData }     from '@/app/api/x-post/route'
 import { XPostEmbed }         from '@/components/XPostEmbed'
 import type { CounterpointCard, LLMSettings, TopicCategory, TranscriptLine, Verdict } from '@/types'
@@ -242,6 +243,7 @@ export default function Home() {
       setUserId(anonId)
       setShowLoginModal(true)
     }
+    track('page_view', { page: '/app' })
   }, [])
 
   // Called by LoginModal after a successful login
@@ -370,6 +372,8 @@ export default function Home() {
       }
       return [placeholder, ...prev]
     })
+
+    track('fact_check', { page: '/app', userId: userIdRef.current ?? undefined, meta: { auto: opts.origin !== 'manual', category: category ?? '' } })
 
     const evRes = await fetch('/api/evidence', {
       method: 'POST',
@@ -936,6 +940,7 @@ export default function Home() {
       setTranscriptTab('live')
       await audioCapture.startMic()
       setIsLive(true)
+      track('live_capture', { page: '/app', userId: userIdRef.current ?? undefined, meta: { mode: 'mic' } })
     }
   }
 
@@ -949,6 +954,7 @@ export default function Home() {
       setTranscriptTab('live')
       await audioCapture.startTabCapture()
       setIsLive(true)
+      track('live_capture', { page: '/app', userId: userIdRef.current ?? undefined, meta: { mode: 'tab' } })
     }
   }
 

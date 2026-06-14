@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { track } from '@/lib/track'
 import Link  from 'next/link'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
@@ -103,7 +104,10 @@ export default function Home() {
   const [userEmail, setUserEmail]       = useState<string | null>(null)
   const [showLogin, setShowLogin]       = useState(false)
 
-  useEffect(() => { setUserEmail(localStorage.getItem('cp_user_email')) }, [])
+  useEffect(() => {
+    setUserEmail(localStorage.getItem('cp_user_email'))
+    track('page_view', { page: '/' })
+  }, [])
 
   return (
     <div className="min-h-screen bg-[#070710] text-white">
