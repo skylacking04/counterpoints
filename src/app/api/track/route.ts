@@ -4,12 +4,30 @@ import { FieldValue } from 'firebase-admin/firestore'
 
 export const runtime = 'nodejs'
 
-// Cloud Run injects these geo headers automatically on every request
-function geo(req: NextRequest) {
-  return {
-    city:    req.headers.get('x-appengine-city')    ?? req.headers.get('x-vercel-ip-city')    ?? null,
-    region:  req.headers.get('x-appengine-region')  ?? req.headers.get('x-vercel-ip-country-region') ?? null,
-    country: req.headers.get('x-appengine-country') ?? req.headers.get('x-vercel-ip-country') ?? null,
+// Simple in-process IP→geo cache so we don't hammer ip-api on every event
+const geoCache = new Map<string, { city: string | null; region: string | null; country: string | null }>()
+
+function clientIp(req: NextRequest): string | null {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+    req.headers.get('x-real-ip') ??
+    null
+  )
+}
+
+async function geoFromIp(ip: string | null): Promise<{ city: string | null; region: string | null; country: string | null }> {
+  if (!ip || ip === '127.0.0.1' || ip.startsWith('::')) return { city: null, region: null, country: null }
+  if (geoCache.has(ip)) return geoCache.get(ip)!
+  try {
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=city,regionName,country,status`, { signal: AbortSignal.timeout(2000) })
+    const d = await res.json() as { status: string; city?: string; regionName?: string; country?: string }
+    const loc = d.status === 'success'
+      ? { city: d.city ?? null, region: d.regionName ?? null, country: d.country ?? null }
+      : { city: null, region: null, country: null }
+    geoCache.set(ip, loc)
+    return loc
+  } catch {
+    return { city: null, region: null, country: null }
   }
 }
 
@@ -23,7 +41,8 @@ export async function POST(req: NextRequest) {
     }
     if (!body.event) return NextResponse.json({ ok: false }, { status: 400 })
 
-    const location = geo(req)
+    const ip = clientIp(req)
+    const location = await geoFromIp(ip)
     const db = getDb()
 
     // Write individual event
