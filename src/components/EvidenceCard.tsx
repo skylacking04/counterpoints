@@ -47,6 +47,15 @@ function formatMs(ms: number) {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 }
 
+// Qualifying stamp shown next to the verdict (esp. for UNVERIFIED) so it doesn't read as a failure.
+const TAG_LABEL: Record<NonNullable<CounterpointCard['verdictTag']>, { text: string; cls: string }> = {
+  'first-hand': { text: '🎙 First-hand — likely true, not independently verified', cls: 'bg-sky-500/15 text-sky-300 border-sky-500/25' },
+  'plausible':  { text: 'Plausible — uncorroborated',  cls: 'bg-slate-500/15 text-slate-300 border-slate-500/25' },
+  'developing': { text: 'Breaking / developing',        cls: 'bg-amber-500/15 text-amber-300 border-amber-500/25' },
+  'opinion':    { text: 'Opinion / value judgment',     cls: 'bg-violet-500/15 text-violet-300 border-violet-500/25' },
+  'disputed':   { text: 'Disputed',                     cls: 'bg-orange-500/15 text-orange-300 border-orange-500/25' },
+}
+
 // Display label for the topic category chip — shows the user which topic model drove the lenses.
 const CATEGORY_LABEL: Record<string, string> = {
   political: 'Politics', business: 'Business', finance: 'Finance', tech: 'Tech',
@@ -237,50 +246,56 @@ function EvidenceCardBase({ card, isActive, onSeek, onActivate, onArchive, onRer
           onActivate?.(card.claimId, card.transcriptOffsetMs ?? 0)
         }}
         onKeyDown={e => e.key === 'Enter' && (setIsOpen(v => !v), onActivate?.(card.claimId, card.transcriptOffsetMs ?? 0))}
-        className={`px-3 py-2.5 flex items-center gap-2 cursor-pointer select-none bg-white/[0.02] hover:bg-white/[0.04] transition-colors`}
+        className={`px-3 py-2.5 flex items-center gap-1.5 cursor-pointer select-none bg-white/[0.02] hover:bg-white/[0.04] transition-colors`}
       >
-        {/* Verdict — prominent colored pill, the most important element */}
+        {/* Verdict — prominent colored pill */}
         <span className={`flex items-center gap-1 ${cfg.headerBg} ${cfg.headerText} font-bold text-[10px] tracking-wide px-2 py-1 rounded-full shrink-0`}>
           <span className="text-[11px] leading-none">{cfg.icon}</span> {cfg.label}
         </span>
-        {/* Claim — fills available space, shown once (no body repeat) */}
+        {card.verdictTag && TAG_LABEL[card.verdictTag] && (
+          <span className={`hidden lg:inline text-[9px] font-medium px-1.5 py-0.5 rounded-full border shrink-0 ${TAG_LABEL[card.verdictTag].cls}`}>
+            {TAG_LABEL[card.verdictTag].text}
+          </span>
+        )}
+        {/* Claim — fills available space */}
         <span className="text-sm text-white/85 truncate flex-1 min-w-0">{card.claim}</span>
-        {/* Topic category chip — surfaces which topic model drove the lenses (not just politics) */}
-        {card.category && (
-          <span
-            className="hidden sm:inline text-[9px] font-medium uppercase tracking-wide text-gray-400 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 shrink-0"
-            title={`Topic: ${CATEGORY_LABEL[card.category] ?? card.category}`}
-          >
-            {CATEGORY_LABEL[card.category] ?? card.category}
-          </span>
-        )}
-        {card.cacheHit && (
-          <span
-            className="text-[10px] font-medium text-indigo-400/70 shrink-0"
-            title={`Knowledge base hit — ${Math.round((card.cacheSimilarity ?? 1) * 100)}% match`}
-          >
-            ⚡
-          </span>
-        )}
-        {/* Timestamp */}
-        {card.transcriptOffsetMs != null && card.transcriptOffsetMs > 0 && onSeek && (
-          <button
-            onClick={e => { e.stopPropagation(); onSeek(card.transcriptOffsetMs!) }}
-            className={`text-[11px] font-mono ${cfg.headerText} bg-black/20 hover:bg-black/40 border border-white/10 rounded-md px-1.5 py-0.5 shrink-0 transition-colors`}
-          >
-            @ {formatMs(card.transcriptOffsetMs)}
-          </button>
-        )}
-        <span className={`text-[9px] text-gray-600 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
-        {onArchive && (
-          <button
-            onClick={e => { e.stopPropagation(); onArchive(card.id) }}
-            title="Dismiss / archive this fact-check"
-            className="shrink-0 text-gray-600 hover:text-red-300 hover:bg-red-500/10 rounded p-0.5 transition-colors"
-          >
-            <X size={14} />
-          </button>
-        )}
+        {/* Right-side controls — tight cluster, always visible */}
+        <span className="flex items-center gap-1 shrink-0">
+          {card.category && (
+            <span
+              className="hidden md:inline text-[9px] font-medium uppercase tracking-wide text-gray-400 bg-white/5 border border-white/10 rounded px-1.5 py-0.5"
+              title={`Topic: ${CATEGORY_LABEL[card.category] ?? card.category}`}
+            >
+              {CATEGORY_LABEL[card.category] ?? card.category}
+            </span>
+          )}
+          {card.cacheHit && (
+            <span
+              className="text-[10px] font-medium text-indigo-400/70"
+              title={`Knowledge base hit — ${Math.round((card.cacheSimilarity ?? 1) * 100)}% match`}
+            >
+              ⚡
+            </span>
+          )}
+          {card.transcriptOffsetMs != null && card.transcriptOffsetMs > 0 && onSeek && (
+            <button
+              onClick={e => { e.stopPropagation(); onSeek(card.transcriptOffsetMs!) }}
+              className={`text-[11px] font-mono ${cfg.headerText} bg-black/20 hover:bg-black/40 border border-white/10 rounded-md px-1.5 py-0.5 transition-colors`}
+            >
+              @ {formatMs(card.transcriptOffsetMs)}
+            </button>
+          )}
+          <span className={`text-[9px] text-gray-600 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+          {onArchive && (
+            <button
+              onClick={e => { e.stopPropagation(); onArchive(card.id) }}
+              title="Dismiss / archive this fact-check"
+              className="text-gray-600 hover:text-red-300 hover:bg-red-500/10 rounded p-0.5 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </span>
       </div>
 
       {/* Expandable body */}

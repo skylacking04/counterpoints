@@ -19,6 +19,7 @@ import { useAudioCapture }    from '@/hooks/useAudioCapture'
 import { useFrameCapture }    from '@/hooks/useFrameCapture'
 import { useYouTubeSync }     from '@/hooks/useYouTubeSync'
 import { extractVideoId }     from '@/lib/youtube-transcript'
+import { withDefaults, verdictDelta } from '@/lib/calibration'
 import type { XPostData }     from '@/app/api/x-post/route'
 import { XPostEmbed }         from '@/components/XPostEmbed'
 import type { CounterpointCard, LLMSettings, TopicCategory, TranscriptLine, Verdict } from '@/types'
@@ -195,6 +196,9 @@ export default function Home() {
   const videoVersionRef   = useRef(0)
   // Memory for the claim gatekeeper — recently-checked claim texts, to avoid re-flagging duplicates
   const recentClaimsRef   = useRef<string[]>([])
+  // Per-card verdict already applied to the lie meter / counts, so a RE-RUN reconciles by delta
+  // (remove old contribution, add new) instead of double-counting.
+  const appliedVerdictRef = useRef<Map<string, Verdict>>(new Map())
   const cardsRef          = useRef<CounterpointCard[]>([])  // live mirror of `cards` for synchronous dedup in processClaim
 
   const transcript = useTranscript()
@@ -370,7 +374,8 @@ export default function Home() {
     const evRes = await fetch('/api/evidence', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ claim: claimText, topic, category, claimId: cardId, settings, noCache: opts.noCache === true }),
+      body: JSON.stringify({ claim: claimText, topic, category, claimId: cardId, settings, noCache: opts.noCache === true,
+        calibration: { strictness: withDefaults(settings.calibration).strictness, customDomains: withDefaults(settings.calibration).customDomains } }),
     })
 
     if (evRes.status === 429) {
@@ -407,15 +412,25 @@ export default function Home() {
           body: JSON.stringify({ sessionId: sessionIdRef.current, card }),
         }).catch(() => { /* best-effort */ })
       }
+      // Reconcile by delta so a re-run UPDATES (doesn't double-count). Remove the verdict we last
+      // applied for this card, then apply the new one.
+      const cal = withDefaults(settings.calibration)
+      const prevApplied = appliedVerdictRef.current.get(cardId) ?? null
+      appliedVerdictRef.current.set(cardId, card.verdict)
       setLieScore(prev => {
-        const delta = card.verdict === 'FALSE' ? 30 : card.verdict === 'MISLEADING' ? 15 : card.verdict === 'TRUE' ? -5 : 0
-        return Math.max(0, Math.min(100, prev + delta))
+        const removed = prevApplied ? verdictDelta(prevApplied, cal.weights) : 0
+        const added   = verdictDelta(card.verdict, cal.weights)
+        return Math.max(0, Math.min(100, prev - removed + added))
       })
-      setVerdictCounts(prev => ({
-        true:       prev.true       + (card.verdict === 'TRUE'       ? 1 : 0),
-        misleading: prev.misleading + (card.verdict === 'MISLEADING' ? 1 : 0),
-        false:      prev.false      + (card.verdict === 'FALSE'       ? 1 : 0),
-      }))
+      setVerdictCounts(prev => {
+        const dec = (k: 'TRUE' | 'MISLEADING' | 'FALSE') => (prevApplied === k ? 1 : 0)
+        const inc = (k: 'TRUE' | 'MISLEADING' | 'FALSE') => (card.verdict === k ? 1 : 0)
+        return {
+          true:       Math.max(0, prev.true       - dec('TRUE')       + inc('TRUE')),
+          misleading: Math.max(0, prev.misleading - dec('MISLEADING') + inc('MISLEADING')),
+          false:      Math.max(0, prev.false      - dec('FALSE')      + inc('FALSE')),
+        }
+      })
     }
 
     if (!evRes.body) {
@@ -711,11 +726,14 @@ export default function Home() {
       const vc = { true: 0, misleading: 0, false: 0 }
       let score = 0
       const vm = new Map<string, import('@/types').Verdict>()
+      const cal = withDefaults(settings.calibration)
       for (const c of session.cards) {
-        if (c.verdict === 'TRUE')       { vc.true++;       score = Math.max(0, score - 5) }
-        if (c.verdict === 'MISLEADING') { vc.misleading++; score = Math.min(100, score + 15) }
-        if (c.verdict === 'FALSE')      { vc.false++;      score = Math.min(100, score + 30) }
+        if (c.verdict === 'TRUE') vc.true++
+        else if (c.verdict === 'MISLEADING') vc.misleading++
+        else if (c.verdict === 'FALSE') vc.false++
+        score = Math.max(0, Math.min(100, score + verdictDelta(c.verdict, cal.weights)))
         vm.set(c.claimId, c.verdict)
+        appliedVerdictRef.current.set(c.id, c.verdict)  // seed so re-runs reconcile by delta
       }
       setVerdictCounts(vc)
       setLieScore(score)
@@ -750,7 +768,7 @@ export default function Home() {
   const handleLoadX = async () => {
     transcript.reset()
     setCards([])
-    setLieScore(0)
+    setLieScore(0); appliedVerdictRef.current.clear()
     setVerdictCounts({ true: 0, misleading: 0, false: 0 })
     setTranscriptStatus('loading')
     setVideoId(null)
@@ -791,7 +809,7 @@ export default function Home() {
     setXPost(null)
     transcript.reset()
     setCards([])
-    setLieScore(0)
+    setLieScore(0); appliedVerdictRef.current.clear()
     setVerdictCounts({ true: 0, misleading: 0, false: 0 })
     setTranscriptStatus('loading')
     setFullTranscript([])
@@ -950,15 +968,18 @@ export default function Home() {
   const autoCards   = cards.filter(c => (c.origin ?? 'auto') === 'auto')
 
   const renderCard = (card: CounterpointCard) => (
-    <EvidenceCard
-      key={card.id}
-      card={card}
-      isActive={activeClaimId === card.claimId}
-      onSeek={handleCardSeek}
-      onActivate={handleCardActivate}
-      onArchive={handleArchiveCard}
-      onRerun={handleRerunSources}
-    />
+    // shrink-0 wrapper: cards live in a flex-col scroll area; without it, a constrained-height
+    // container shrinks each card to a thin strip (the collapsed-card regression).
+    <div key={card.id}>
+      <EvidenceCard
+        card={card}
+        isActive={activeClaimId === card.claimId}
+        onSeek={handleCardSeek}
+        onActivate={handleCardActivate}
+        onArchive={handleArchiveCard}
+        onRerun={handleRerunSources}
+      />
+    </div>
   )
 
   return (
@@ -1116,11 +1137,14 @@ export default function Home() {
                     const vCount = { true: 0, misleading: 0, false: 0 }
                     let score = 0
                     const vm = new Map<string, import('@/types').Verdict>()
+                    const cal = withDefaults(settings.calibration)
                     for (const c of session.cards) {
-                      if (c.verdict === 'TRUE')       { vCount.true++; score = Math.max(0, score - 5) }
-                      if (c.verdict === 'MISLEADING') { vCount.misleading++; score = Math.min(100, score + 15) }
-                      if (c.verdict === 'FALSE')      { vCount.false++; score = Math.min(100, score + 30) }
+                      if (c.verdict === 'TRUE') vCount.true++
+                      else if (c.verdict === 'MISLEADING') vCount.misleading++
+                      else if (c.verdict === 'FALSE') vCount.false++
+                      score = Math.max(0, Math.min(100, score + verdictDelta(c.verdict, cal.weights)))
                       vm.set(c.claimId, c.verdict)
+                      appliedVerdictRef.current.set(c.id, c.verdict)
                     }
                     setVerdictCounts(vCount)
                     setLieScore(score)
@@ -1228,7 +1252,7 @@ export default function Home() {
         </div>
 
         {/* Two-column content area */}
-        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden" style={{ gap: '0' }}>
+        <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden gap-2">
 
           {/* Left: Transcript */}
           <div
@@ -1364,7 +1388,11 @@ export default function Home() {
               expandedPanel === 'checks' ? 'flex flex-1' :
               mobileTab !== 'transcript' ? 'flex' : 'hidden md:flex'
             } flex-1 flex-col min-h-0 w-full rounded-xl border border-white/8 bg-[#0d0d14] overflow-hidden`}
-            style={isDesktop && !expandedPanel ? { flexBasis: `calc(${(1 - splitRatio) * 100}% - 3px)`, flexGrow: 0, flexShrink: 0 } : undefined}
+            style={isDesktop && !expandedPanel ? {
+              flexBasis: `calc(${(1 - splitRatio) * 100}% - 3px)`,
+              flexGrow: 0,
+              flexShrink: 0,
+            } : undefined}
           >
             {/* Right-pane header = the tab menu (sits ABOVE the gauge), as a segmented control so it
                 clearly reads as tabs. Desktop only — the mobile 3-tab bar drives this on phones. */}
@@ -1412,7 +1440,7 @@ export default function Home() {
             </div>
 
             {/* Scrollable body — gauge + banners + cards live here so the tab menu stays pinned */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-3">
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
 
             {/* PantsOnFire — compact single-row meter (counts live inside it, so no separate summary bar) */}
             <div className="shrink-0 rounded-xl border border-white/6 bg-[#0d0d14] overflow-hidden">
@@ -1422,6 +1450,7 @@ export default function Home() {
                 verdictCounts={verdictCounts}
                 stressLevel={null}
                 cards={cards}
+                bands={withDefaults(settings.calibration).bands}
               />
             </div>
             {reconcileNote && (
